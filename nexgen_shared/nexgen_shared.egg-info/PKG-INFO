@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: nexgen-shared
+Version: 0.1.0
+Summary: Shared schemas, errors, and logging for NexGen services
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.5
+Requires-Dist: structlog>=24.1
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"

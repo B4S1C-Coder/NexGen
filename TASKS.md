@@ -28,7 +28,7 @@ gantt
 
 ### Shared
 
-- [ ] **P0-S1** `[SHARED]` Create `nexgen_shared/` Python package with:
+- [x] **P0-S1** `[SHARED]` Create `nexgen_shared/` Python package with:
   - `schemas.py` — all Pydantic v2 models from `AGENTS.md §5` (`UserQuery`, `LogRetrievalRequest`, `LogRetrievalResult`, `KnowledgeRequest`, `KnowledgeResult`, `RCASynthesisInput`, `RCAReport`)
   - `errors.py` — `NexGenError` base exception class; one subclass per error code E001–E008
   - `logging.py` — `structlog` configuration helper returning a bound logger with `service` and `query_id` fields pre-attached

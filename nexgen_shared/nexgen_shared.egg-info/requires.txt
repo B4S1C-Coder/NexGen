@@ -1,0 +1,5 @@
+pydantic>=2.5
+structlog>=24.1
+
+[dev]
+pytest>=7.4

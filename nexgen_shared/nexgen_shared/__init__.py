@@ -1,0 +1,56 @@
+"""Shared contracts for NexGen services."""
+
+from nexgen_shared.errors import (
+    E001SchemaLinkingFailure,
+    E002KqlSyntaxError,
+    E003ElasticsearchTimeout,
+    E004VectorStoreUnreachable,
+    E005LlmInferenceTimeout,
+    E006ContextWindowExceeded,
+    E007KnowledgeConflictUnresolved,
+    E008TopologyVerificationRejected,
+    NexGenError,
+)
+from nexgen_shared.logging import configure_structlog, get_logger
+from nexgen_shared.schemas import (
+    KnowledgeChunk,
+    KnowledgeRequest,
+    KnowledgeResult,
+    KnowledgeTimeWindow,
+    LogHit,
+    LogRetrievalRequest,
+    LogRetrievalResult,
+    RCAEvidenceItem,
+    RCAReport,
+    RCASynthesisInput,
+    SchemaContextPayload,
+    TimeRange,
+    UserQuery,
+)
+
+__all__ = [
+    "E001SchemaLinkingFailure",
+    "E002KqlSyntaxError",
+    "E003ElasticsearchTimeout",
+    "E004VectorStoreUnreachable",
+    "E005LlmInferenceTimeout",
+    "E006ContextWindowExceeded",
+    "E007KnowledgeConflictUnresolved",
+    "E008TopologyVerificationRejected",
+    "KnowledgeChunk",
+    "KnowledgeRequest",
+    "KnowledgeResult",
+    "KnowledgeTimeWindow",
+    "LogHit",
+    "LogRetrievalRequest",
+    "LogRetrievalResult",
+    "NexGenError",
+    "RCAEvidenceItem",
+    "RCAReport",
+    "RCASynthesisInput",
+    "SchemaContextPayload",
+    "TimeRange",
+    "UserQuery",
+    "configure_structlog",
+    "get_logger",
+]
