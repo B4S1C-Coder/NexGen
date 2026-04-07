@@ -1,1 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual envs / uv
+.venv/
+
+# Packaging/build artifacts
+*.egg-info/
+build/
+dist/
 **/__pycache__

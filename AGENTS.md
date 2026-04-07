@@ -58,7 +58,7 @@ Each component is a **self-contained service** (Python package or FastAPI micro-
 
 | Concern | Decision |
 |---------|----------|
-| Runtime language | Python ≥ 3.11 |
+| Runtime language | Python ≥ 3.12 |
 | HTTP transport (inter-service) | REST over HTTP/1.1 (localhost in dev, Docker network in prod) |
 | Async framework | `asyncio` + `httpx` for all inter-component calls |
 | Serialisation | JSON (`pydantic` v2 models — see §5) |

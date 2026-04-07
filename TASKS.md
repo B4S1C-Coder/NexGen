@@ -59,7 +59,7 @@ gantt
     - `POST /query` → returns a hardcoded `RCAReport` with `confidence=0.0`
     - `GET /health` → `{"status": "ok", "service": "master"}`
     - `GET /session/{session_id}` → `{"session_id": session_id, "history": []}`
-  - `Dockerfile` (multi-stage, Python 3.11-slim)
+  - `Dockerfile` (multi-stage, Python 3.12-slim)
   - Integration test: `GET /health` returns 200
 
 ### NL-to-KQL Pipeline
