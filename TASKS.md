@@ -44,7 +44,7 @@ gantt
   - `master`, `query`, `rag` (each built from their local `Dockerfile`)
   - Shared network `nexgen-net`; volumes for ES data, Qdrant storage, Redis data
 
-- [ ] **P0-S3** `[SHARED]` Create `nexgen_shared/tracing.py`:
+- [x] **P0-S3** `[SHARED]` Create `nexgen_shared/tracing.py`:
   - `configure_tracer(service_name: str) -> Tracer` — initialises OpenTelemetry with OTLP gRPC exporter
   - Decorator `@traced(span_name)` that wraps an async function in an OTel span
   - Unit test: verify span is created and contains `service.name` attribute
