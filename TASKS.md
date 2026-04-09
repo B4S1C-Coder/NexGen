@@ -52,7 +52,7 @@ gantt
 
 ### Master LLM Orchestrator
 
-- [ ] **P0-M1** `[MASTER]` Scaffold the `master/` service:
+- [x] **P0-M1** `[MASTER]` Scaffold the `master/` service:
   - `pyproject.toml` (deps: `fastapi`, `uvicorn`, `httpx`, `pydantic-settings`, `redis[hiredis]`, `nexgen_shared`)
   - `.env.example` (copy from `master.md §5`)
   - `src/main.py` — FastAPI app with lifespan, three stub endpoints:
