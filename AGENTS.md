@@ -63,8 +63,8 @@ Each component is a **self-contained service** (Python package or FastAPI micro-
 | Async framework | `asyncio` + `httpx` for all inter-component calls |
 | Serialisation | JSON (`pydantic` v2 models — see §5) |
 | Vector store | Qdrant (self-hosted) |
-| Primary LLM backend | Ollama (local) — Llama 3.2 for Master; Qwen 3.5-Coder for NL-to-KQL |
-| Embedding model | `nomic-embed-text` via Ollama |
+| Primary LLM backend | llama.cpp (local) — Llama 3.2 for Master; Qwen 3.5-Coder for NL-to-KQL as GGUF models |
+| Embedding model | `nomic-embed-text` via llama.cpp |
 | Logging / tracing | `structlog` + OpenTelemetry spans; all components emit to the same OTLP collector |
 | Configuration | `pydantic-settings`; one `.env` file per component; shared keys documented in `config/shared.env.example` |
 | Testing | `pytest` + `pytest-asyncio`; minimum 80 % branch coverage per component |

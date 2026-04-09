@@ -2,7 +2,7 @@
 
 > **Depends on:** `AGENTS.md` (read that first).  
 > **Service port:** `8001`  
-> **Primary model:** Qwen 3.5-Coder (via Ollama, 4-bit quantised)  
+> **Primary model:** Qwen 3.5-Coder (via llama.cpp, 4-bit quantised GGUF)  
 > **Framework:** FastAPI + custom pipeline stages
 
 ---
@@ -287,8 +287,8 @@ ELASTICSEARCH_PASSWORD=changeme
 ES_REQUEST_TIMEOUT=20
 ES_MAX_RESULTS_HARD_CAP=2000
 
-# LLM
-OLLAMA_BASE_URL=http://localhost:11434
+# LLM (served by llama.cpp)
+LLAMACPP_SERVER_URL=http://localhost:8081
 QUERY_LLM_MODEL=qwen2.5-coder:7b-instruct-q4_K_M
 QUERY_LLM_TEMPERATURE=0.05
 QUERY_LLM_MAX_TOKENS=512

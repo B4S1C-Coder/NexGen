@@ -2,7 +2,7 @@
 
 > **Depends on:** `AGENTS.md` (read that first).  
 > **Service port:** `8000`  
-> **Primary model:** Llama 3.2 (via Ollama)  
+> **Primary model:** Llama 3.2 (via llama.cpp)  
 > **Framework:** LangGraph state machine + FastAPI
 
 ---
@@ -287,8 +287,8 @@ LOG_LEVEL=INFO
 QUERY_SERVICE_URL=http://localhost:8001
 RAG_SERVICE_URL=http://localhost:8002
 
-# LLM
-OLLAMA_BASE_URL=http://localhost:11434
+# LLM (served by llama.cpp)
+LLAMACPP_SERVER_URL=http://localhost:8080
 MASTER_LLM_MODEL=llama3.2:8b-instruct-q4_K_M
 MASTER_LLM_TEMPERATURE=0.2
 MASTER_LLM_MAX_TOKENS=2048

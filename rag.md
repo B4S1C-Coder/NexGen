@@ -2,7 +2,7 @@
 
 > **Depends on:** `AGENTS.md` (read that first).  
 > **Service port:** `8002`  
-> **Embedding model:** `nomic-embed-text` via Ollama  
+> **Embedding model:** `nomic-embed-text` via llama.cpp  
 > **Framework:** FastAPI + Qdrant + custom retrieval stages
 
 ---
@@ -353,8 +353,8 @@ cd rag && python -m pytest tests/eval/ --ragas --eval-set data/ragas_eval.jsonl
 RAG_PORT=8002
 LOG_LEVEL=INFO
 
-# Embedding
-OLLAMA_BASE_URL=http://localhost:11434
+# Embedding (served by llama.cpp)
+LLAMACPP_EMBED_SERVER_URL=http://localhost:8082
 EMBEDDING_MODEL=nomic-embed-text
 
 # Vector store
