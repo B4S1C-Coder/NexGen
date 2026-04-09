@@ -1,3 +1,32 @@
+## Architecture
+
+```mermaid
+flowchart TD
+    client["Client (CLI/UI)"] --> api[FastAPIApp]
+    api --> sessionRoute["/session"]
+    api --> healthRoute["/health"]
+    api --> queryRoute["/query"]
+
+    queryRoute --> settingsNode[Settings]
+    queryRoute --> loggerNode[StructlogLogger]
+
+    subgraph orchestration["Future orchestration (Phase > 0)"]
+        intentNode[IntentClassifier]
+        plannerNode[DAGPlanner]
+        executorNode[TaskExecutor]
+        contextNode[ContextAssembler]
+        reasonerNode[ReasonerAgent]
+        validatorNode[ValidatorAgent]
+        synthesiserNode[RCASynthesiser]
+
+        intentNode --> plannerNode --> executorNode --> contextNode --> reasonerNode --> validatorNode --> synthesiserNode
+    end
+
+    queryRoute --> intentNode
+```
+
+## How to test the endpoints
+
 Test the endpoints:
 
 1) Health Check
