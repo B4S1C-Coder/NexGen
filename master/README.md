@@ -94,17 +94,17 @@ Since the upstream `query` and `rag` pipelines are not yet fully implemented by 
 
 ### Mock Query Pipeline (`master/src/mock_query/`)
 - [x] **M-Q1**: Scaffolding: Create package structure and empty modules (`schema_linker.py`, `few_shot.py`, etc.).
-- [ ] **M-Q2**: Create `schema_linker.py` to return static `SchemaContext`.
-- [ ] **M-Q3**: Create `few_shot.py` returning hardcoded KQL few-shots.
-- [ ] **M-Q4**: Create `generator.py` for mocking KQL generation.
-- [ ] **M-Q5**: Create `validator.py` and `repair.py` for syntax check mocks.
-- [ ] **M-Q6**: Create `executor.py` to return local fixture ES hits and `pii.py` to mask them.
-- [ ] **M-Q7**: Create `formatter.py` and integrate the end-to-end `pipeline.py`.
+- [x] **M-Q2**: Create `schema_linker.py` to return static `SchemaContext`.
+- [x] **M-Q3**: Create `few_shot.py` returning hardcoded KQL few-shots.
+- [x] **M-Q4**: Create `generator.py` for mocking KQL generation.
+- [x] **M-Q5**: Create `validator.py` and `repair.py` for syntax check mocks.
+- [x] **M-Q6**: Create `executor.py` to return local fixture ES hits and `pii.py` to mask them.
+- [x] **M-Q7**: Create `formatter.py` and integrate the end-to-end `pipeline.py`.
 
 ### Mock RAG Pipeline (`master/src/mock_rag/`)
 - [x] **M-R1**: Scaffolding: Create package structure and empty modules.
-- [ ] **M-R2**: Create `temporal.py`, `dense.py`, and `sparse.py` to mock document retrieval.
-- [ ] **M-R3**: Create `fusion.py`, `reranker.py`, and `authority.py` to mock WRRF scoring and ranking.
-- [ ] **M-R4**: Create `conflict.py` and `debate.py` to simulate NLI and debate resolution.
-- [ ] **M-R5**: Create `compactor.py` and `id_preservation.py` to mock token pruning.
-- [ ] **M-R6**: Integrate the end-to-end `pipeline.py`.
+- [x] **M-R2**: Create `temporal.py`, `dense.py`, and `sparse.py` to mock document retrieval.
+- [x] **M-R3**: Create `fusion.py`, `reranker.py`, and `authority.py` to mock WRRF scoring and ranking.
+- [x] **M-R4**: Create `conflict.py` and `debate.py` to simulate NLI and debate resolution.
+- [x] **M-R5**: Create `compactor.py` and `id_preservation.py` to mock token pruning.
+- [x] **M-R6**: Integrate the end-to-end `pipeline.py`.
