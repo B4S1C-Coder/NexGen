@@ -1,0 +1,124 @@
+name: nexgen
+
+# llama.cpp intentionally not included, better to install it locally to avoid CUDA Driver issues and docker interfacing
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - nexgen-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - nexgen-net
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.3
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - nexgen-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - nexgen-net
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.98.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./config/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+    networks:
+      - nexgen-net
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - nexgen-net
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - nexgen-net
+
+  master:
+    build:
+      context: .
+      dockerfile: master/Dockerfile
+    # Optional: create ./master/.env for local overrides.
+    env_file:
+      - ./master/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - otel-collector
+    networks:
+      - nexgen-net
+
+  query:
+    build:
+      context: .
+      dockerfile: query/Dockerfile
+    ports:
+      - "8001:8001"
+    depends_on:
+      - elasticsearch
+      - qdrant
+      - otel-collector
+    networks:
+      - nexgen-net
+
+  rag:
+    build:
+      context: .
+      dockerfile: rag/Dockerfile
+    ports:
+      - "8002:8002"
+    depends_on:
+      - qdrant
+      - otel-collector
+    networks:
+      - nexgen-net
+
+networks:
+  nexgen-net:
+    driver: bridge
+
+volumes:
+  es_data:
+  qdrant_data:
+  redis_data:

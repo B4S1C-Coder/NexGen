@@ -34,12 +34,11 @@ gantt
   - `logging.py` — `structlog` configuration helper returning a bound logger with `service` and `query_id` fields pre-attached
   - Unit tests: every schema serialises/deserialises a round-trip without data loss
 
-- [ ] **P0-S2** `[SHARED]` Create `docker-compose.yml` defining services:
+- [x] **P0-S2** `[SHARED]` Create `docker-compose.yml` defining services:
   - `elasticsearch` (8.x, single-node)
   - `kibana`
   - `qdrant`
   - `redis`
-  - `ollama` (with health check)
   - `otel-collector` (receives OTLP gRPC on 4317)
   - `prometheus` + `grafana`
   - `master`, `query`, `rag` (each built from their local `Dockerfile`)
