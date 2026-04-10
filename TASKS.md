@@ -265,7 +265,7 @@ gantt
 
 ### Master LLM Orchestrator
 
-- [ ] **P3-M1** `[MASTER]` Implement `src/session.py` — `SessionManager`:
+- [x] **P3-M1** `[MASTER]` Implement `src/session.py` — `SessionManager`:
   - Redis-backed with `SESSION_TTL_SECONDS`
   - `async def get(session_id) -> SessionState`
   - `async def put(session_id, state: SessionState)`
