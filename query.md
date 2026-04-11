@@ -104,7 +104,7 @@ When `is_nested = True`, the Schema Linker annotates the field with its `nested_
 ```
 ### Example 1
 NLQ: Show me all ERROR logs from the auth service in the past 1 hour
-KQL: service.name: "auth" AND log.level: "ERROR" | where @timestamp >= now-1h
+KQL: service.name: "auth" AND log.level: "ERROR" AND @timestamp >= now-1h
 ```
 
 **Cold-start:** If fewer than 2 examples are found above threshold, the selector falls back to a static set of 4 general KQL templates included in `data/fallback_examples.jsonl`.
@@ -119,7 +119,7 @@ KQL: service.name: "auth" AND log.level: "ERROR" | where @timestamp >= now-1h
 
 **System prompt (stored in `prompts/generator.txt`):**
 ```
-You are a Kusto Query Language (KQL) expert for Elasticsearch / Kibana.
+You are a Kibana Query Language (KQL) expert for Elasticsearch / Kibana.
 Given a natural language question, a database schema, and examples, 
 output ONLY a syntactically valid KQL query — no explanations, no markdown fences.
 
@@ -150,7 +150,7 @@ KQL:
 **Implementation:** A hand-written recursive-descent parser covering the KQL grammar:
 - Field existence check against `SchemaContext.relevant_fields`
 - Balanced parentheses / brackets
-- Operator validity (`AND`, `OR`, `NOT`, `:`, `>=`, `<=`, `|`, pipe-chain)
+- Operator validity (AND, OR, NOT, :, >=, <=, >)
 - Nested query structure when `is_nested = True`
 - Time expression syntax (`now-Xm`, `now-Xh`, ISO-8601 literals)
 
