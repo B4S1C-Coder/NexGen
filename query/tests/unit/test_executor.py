@@ -2,6 +2,10 @@
 
 Uses unittest.mock to avoid needing a real Elasticsearch instance.
 Tests verify correct DSL construction, result extraction, and error handling.
+
+IMPORTANT: Tests use elasticsearch-py 9.x keyword argument style.
+The executor calls search(index=..., query=..., size=..., source=...)
+NOT search(index=..., body={...}).
 """
 
 from __future__ import annotations
@@ -19,10 +23,10 @@ def make_schema_ctx(indices: list[str] | None = None) -> SchemaContext:
     """Build a minimal SchemaContext for testing.
 
     Args:
-        indices: Index names to include. Defaults to ['logs-2026'].
+        indices: Index names to include. Pass [] for empty, None for default.
 
     Returns:
-        SchemaContext with the given indices and one dummy field.
+        SchemaContext with given indices and one dummy field.
     """
     return SchemaContext(
         selected_indices=indices if indices is not None else ["logs-2026"],
@@ -47,7 +51,7 @@ def make_es_response(
         shards_failed: Number of failed shards to report.
 
     Returns:
-        Dict mimicking the structure of a real ES response.
+        Dict mimicking the structure of a real ES _search response.
     """
     return {
         "hits": {
@@ -59,8 +63,8 @@ def make_es_response(
     }
 
 
-class TestExecutorStartupShutdown:
-    """Tests for lifecycle methods."""
+class TestExecutorLifecycle:
+    """Tests for startup and shutdown lifecycle methods."""
 
     @pytest.mark.asyncio
     async def test_execute_before_startup_raises_runtime_error(self) -> None:
@@ -72,8 +76,8 @@ class TestExecutorStartupShutdown:
             )
 
 
-class TestExecutorExecute:
-    """Tests for the execute() method with mocked ES client."""
+class TestExecutorHitsAndTotals:
+    """Tests for correct extraction of hits and totals from ES response."""
 
     @pytest.mark.asyncio
     async def test_returns_executor_result_instance(self) -> None:
@@ -81,9 +85,7 @@ class TestExecutorExecute:
         executor = ElasticsearchExecutor()
         mock_client = AsyncMock()
         mock_client.search = AsyncMock(
-            return_value=make_es_response(
-                [{"service": "auth"}], total=1
-            )
+            return_value=make_es_response([{"service": "auth"}], total=1)
         )
         executor._client = mock_client
 
@@ -94,7 +96,7 @@ class TestExecutorExecute:
 
     @pytest.mark.asyncio
     async def test_hits_extracted_from_source(self) -> None:
-        """execute() must return _source contents as hits."""
+        """execute() must return _source contents as hits list."""
         executor = ElasticsearchExecutor()
         mock_client = AsyncMock()
         fake_hit = {"service": "payments", "level": "ERROR"}
@@ -125,61 +127,20 @@ class TestExecutorExecute:
         assert result.total == 42
 
     @pytest.mark.asyncio
-    async def test_hard_cap_enforced(self) -> None:
-        """max_results must be capped at ES_MAX_RESULTS_HARD_CAP."""
-        executor = ElasticsearchExecutor()
-        executor._settings.es_max_results_hard_cap = 100
-        mock_client = AsyncMock()
-        mock_client.search = AsyncMock(
-            return_value=make_es_response([], total=0)
-        )
-        executor._client = mock_client
-
-        await executor.execute(
-            'service.name: "auth"', make_schema_ctx(), max_results=9999
-        )
-        call_kwargs = mock_client.search.call_args
-        body = call_kwargs.kwargs.get("body")
-        assert body["size"] == 100
-
-    @pytest.mark.asyncio
-    async def test_connection_error_raises_e003(self) -> None:
-        """ConnectionError from ES must raise E003ElasticsearchTimeout."""
-        from elasticsearch import ConnectionError as ESConnectionError
-
-        executor = ElasticsearchExecutor()
-        mock_client = AsyncMock()
-        mock_client.search = AsyncMock(
-            side_effect=ESConnectionError("connection refused")
-        )
-        executor._client = mock_client
-
-        with pytest.raises(E003ElasticsearchTimeout):
-            await executor.execute(
-                'service.name: "auth"', make_schema_ctx(), max_results=10
-            )
-
-    @pytest.mark.asyncio
-    async def test_index_pattern_built_from_schema_ctx(self) -> None:
-        """Executor must search the indices from SchemaContext."""
+    async def test_empty_hits_returns_empty_list(self) -> None:
+        """Zero hits from ES must produce an empty hits list."""
         executor = ElasticsearchExecutor()
         mock_client = AsyncMock()
         mock_client.search = AsyncMock(
             return_value=make_es_response([], total=0)
         )
         executor._client = mock_client
-        ctx = make_schema_ctx(indices=["payments-2026", "gateway-2026"])
 
-        await executor.execute('log.level: "ERROR"', ctx, max_results=10)
-
-        call_kwargs = mock_client.search.call_args
-        index_arg = call_kwargs.kwargs.get("index")
-        assert "payments-2026" in index_arg
-        assert "gateway-2026" in index_arg
-
-
-class TestExecutorResultFields:
-    """Tests that ExecutorResult fields are populated correctly."""
+        result = await executor.execute(
+            'service.name: "auth"', make_schema_ctx(), max_results=10
+        )
+        assert result.hits == []
+        assert result.total == 0
 
     @pytest.mark.asyncio
     async def test_timed_out_flag_propagated(self) -> None:
@@ -211,9 +172,13 @@ class TestExecutorResultFields:
         )
         assert result.shards_failed == 2
 
+
+class TestExecutorSearchParameters:
+    """Tests that the correct parameters are sent to Elasticsearch."""
+
     @pytest.mark.asyncio
-    async def test_empty_hits_returns_empty_list(self) -> None:
-        """Zero hits from ES must produce an empty hits list."""
+    async def test_query_kwarg_sent_to_es(self) -> None:
+        """Executor must pass DSL as query= kwarg, not as body=."""
         executor = ElasticsearchExecutor()
         mock_client = AsyncMock()
         mock_client.search = AsyncMock(
@@ -221,15 +186,92 @@ class TestExecutorResultFields:
         )
         executor._client = mock_client
 
-        result = await executor.execute(
+        await executor.execute(
             'service.name: "auth"', make_schema_ctx(), max_results=10
         )
-        assert result.hits == []
-        assert result.total == 0
+
+        call_kwargs = mock_client.search.call_args.kwargs
+        # Must use query= kwarg (ES 9.x style), not body=
+        assert "query" in call_kwargs
+        assert "body" not in call_kwargs
+        assert "term" in call_kwargs["query"] or "bool" in call_kwargs["query"]
+
+    @pytest.mark.asyncio
+    async def test_hard_cap_enforced(self) -> None:
+        """max_results must be capped at ES_MAX_RESULTS_HARD_CAP."""
+        executor = ElasticsearchExecutor()
+        executor._settings.es_max_results_hard_cap = 100
+        mock_client = AsyncMock()
+        mock_client.search = AsyncMock(
+            return_value=make_es_response([], total=0)
+        )
+        executor._client = mock_client
+
+        await executor.execute(
+            'service.name: "auth"', make_schema_ctx(), max_results=9999
+        )
+        call_kwargs = mock_client.search.call_args.kwargs
+        assert call_kwargs["size"] == 100
+
+    @pytest.mark.asyncio
+    async def test_index_pattern_built_from_schema_ctx(self) -> None:
+        """Executor must search the indices from SchemaContext."""
+        executor = ElasticsearchExecutor()
+        mock_client = AsyncMock()
+        mock_client.search = AsyncMock(
+            return_value=make_es_response([], total=0)
+        )
+        executor._client = mock_client
+        ctx = make_schema_ctx(indices=["payments-2026", "gateway-2026"])
+
+        await executor.execute('log.level: "ERROR"', ctx, max_results=10)
+
+        call_kwargs = mock_client.search.call_args.kwargs
+        index_arg = call_kwargs["index"]
+        assert "payments-2026" in index_arg
+        assert "gateway-2026" in index_arg
+
+    @pytest.mark.asyncio
+    async def test_empty_indices_falls_back_to_wildcard(self) -> None:
+        """Empty selected_indices must search '*' (all indices)."""
+        executor = ElasticsearchExecutor()
+        mock_client = AsyncMock()
+        mock_client.search = AsyncMock(
+            return_value=make_es_response([], total=0)
+        )
+        executor._client = mock_client
+
+        await executor.execute(
+            'log.level: "ERROR"', make_schema_ctx(indices=[]), max_results=10
+        )
+
+        call_kwargs = mock_client.search.call_args.kwargs
+        assert call_kwargs["index"] == "*"
+
+
+class TestExecutorErrorHandling:
+    """Tests for correct error handling and E003 propagation."""
+
+    @pytest.mark.asyncio
+    async def test_connection_error_raises_e003(self) -> None:
+        """ConnectionError from ES must raise E003ElasticsearchTimeout."""
+        from elasticsearch import ConnectionError as ESConnectionError
+
+        executor = ElasticsearchExecutor()
+        mock_client = AsyncMock()
+        mock_client.search = AsyncMock(
+            side_effect=ESConnectionError("connection refused")
+        )
+        executor._client = mock_client
+
+        with pytest.raises(E003ElasticsearchTimeout):
+            await executor.execute(
+                'service.name: "auth"', make_schema_ctx(), max_results=10
+            )
 
     @pytest.mark.asyncio
     async def test_transport_error_raises_e003(self) -> None:
-        """TransportError from ES must also raise E003."""
+        """TransportError from ES must also raise E003ElasticsearchTimeout."""
         from elasticsearch import TransportError
 
         executor = ElasticsearchExecutor()
@@ -243,39 +285,3 @@ class TestExecutorResultFields:
             await executor.execute(
                 'service.name: "auth"', make_schema_ctx(), max_results=10
             )
-
-    @pytest.mark.asyncio
-    async def test_empty_indices_falls_back_to_wildcard(self) -> None:
-        """Empty selected_indices must search '*' (all indices)."""
-        executor = ElasticsearchExecutor()
-        mock_client = AsyncMock()
-        mock_client.search = AsyncMock(
-            return_value=make_es_response([], total=0)
-        )
-        executor._client = mock_client
-        ctx = make_schema_ctx(indices=[])
-
-        await executor.execute('log.level: "ERROR"', ctx, max_results=10)
-
-        call_kwargs = mock_client.search.call_args
-        index_arg = call_kwargs.kwargs.get("index")
-        assert index_arg == "*"
-
-    @pytest.mark.asyncio
-    async def test_dsl_body_contains_query_key(self) -> None:
-        """The body sent to ES must contain a 'query' key."""
-        executor = ElasticsearchExecutor()
-        mock_client = AsyncMock()
-        mock_client.search = AsyncMock(
-            return_value=make_es_response([], total=0)
-        )
-        executor._client = mock_client
-
-        await executor.execute(
-            'service.name: "auth"', make_schema_ctx(), max_results=10
-        )
-
-        call_kwargs = mock_client.search.call_args
-        body = call_kwargs.kwargs.get("body")
-        assert body is not None
-        assert "query" in body

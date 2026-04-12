@@ -1,12 +1,13 @@
 """KQL-to-DSL transpiler — converts Kibana Query Language strings into
 Elasticsearch Query DSL dicts that the REST API _search endpoint accepts.
 
-KQL syntax reference: https://www.elastic.co/docs/explore-analyze/query-filter/languages/kql
+KQL syntax reference:
+https://www.elastic.co/docs/explore-analyze/query-filter/languages/kql
 
 Supported KQL patterns (all verified against official Elastic docs):
   Term match:     service.name: "payments"
   Numeric range:  http.status_code >= 400
-  Date math:      @timestamp >= now-1h
+  Date math:      @timestamp >= now-1h  (no quotes for date math)
   Boolean:        field: "a" AND field2: "b" OR NOT field3: "c"
   Term set:       log.level: ("ERROR" OR "WARN")
   Exists:         trace.id: *
@@ -29,13 +30,15 @@ import re
 def kql_to_dsl(kql: str) -> dict:
     """Translate a Kibana KQL query string into an Elasticsearch Query DSL dict.
 
+    The returned dict contains a top-level 'query' key ready to pass
+    directly to the elasticsearch-py 9.x search() method as query=...
+
     Args:
         kql: A KQL query string produced by the KQLGenerator, using
-             standard Kibana KQL syntax (no pipe clauses).
+             standard Kibana KQL syntax. No pipe clauses.
 
     Returns:
-        An Elasticsearch Query DSL dict ready to pass directly to the
-        AsyncElasticsearch client's search() method as the 'query' value.
+        Dict with structure {"query": <ES DSL query dict>}.
 
     Example:
         >>> kql_to_dsl('service.name: "auth" AND log.level: "ERROR"')
@@ -57,8 +60,8 @@ def kql_to_dsl(kql: str) -> dict:
 def _parse_expression(expr: str) -> dict:
     """Recursively parse a KQL expression into an ES query DSL dict.
 
-    Processes boolean operators in correct precedence order:
-    OR (lowest) → AND → NOT → leaf expressions (highest).
+    Processes boolean operators in correct KQL precedence order:
+    OR (lowest precedence) → AND → NOT → leaf expressions (highest).
 
     Args:
         expr: A KQL expression string, no leading/trailing whitespace.
@@ -74,7 +77,12 @@ def _parse_expression(expr: str) -> dict:
     or_parts = _split_on_operator(expr, "OR")
     if len(or_parts) > 1:
         should_clauses = [_parse_expression(p) for p in or_parts]
-        return {"bool": {"should": should_clauses, "minimum_should_match": 1}}
+        return {
+            "bool": {
+                "should": should_clauses,
+                "minimum_should_match": 1,
+            }
+        }
 
     # AND has next precedence
     and_parts = _split_on_operator(expr, "AND")
@@ -82,7 +90,7 @@ def _parse_expression(expr: str) -> dict:
         must_clauses = [_parse_expression(p) for p in and_parts]
         return {"bool": {"must": must_clauses}}
 
-    # NOT prefix
+    # NOT prefix — case-insensitive
     not_match = re.match(r"^NOT\s+(.+)$", expr, re.IGNORECASE)
     if not_match:
         inner = _parse_expression(not_match.group(1).strip())
@@ -95,12 +103,12 @@ def _parse_expression(expr: str) -> dict:
 def _split_on_operator(expr: str, operator: str) -> list[str]:
     """Split a KQL expression on a boolean keyword, respecting parentheses.
 
-    Only splits on top-level occurrences — nested parentheses are
-    never split regardless of what operator appears inside them.
+    Only splits on top-level occurrences of the operator — content
+    inside parentheses or curly braces is never split.
 
     Args:
         expr: The full KQL expression string.
-        operator: 'AND' or 'OR' (case-insensitive match against tokens).
+        operator: 'AND' or 'OR' (matched case-insensitively).
 
     Returns:
         List of sub-expression strings. Returns [expr] if no split found.
@@ -125,11 +133,12 @@ def _split_on_operator(expr: str, operator: str) -> list[str]:
             i += 1
             continue
 
-        # Only attempt operator matching at depth 0
+        # Only attempt operator matching at depth 0 (top level)
         if depth == 0:
-            # Check if current position starts with the operator keyword
             remaining = expr[i:]
-            pattern = rf"^{operator}\s+"
+            # Operator must be surrounded by whitespace to avoid
+            # matching field names that contain the operator as substring
+            pattern = rf"^{operator}(?=\s)"
             match = re.match(pattern, remaining, re.IGNORECASE)
             if match:
                 part = "".join(current_chars).strip()
@@ -137,6 +146,9 @@ def _split_on_operator(expr: str, operator: str) -> list[str]:
                     parts.append(part)
                 current_chars = []
                 i += len(match.group(0))
+                # Skip whitespace after operator
+                while i < len(expr) and expr[i].isspace():
+                    i += 1
                 continue
 
         current_chars.append(char)
@@ -146,7 +158,7 @@ def _split_on_operator(expr: str, operator: str) -> list[str]:
     if last_part:
         parts.append(last_part)
 
-    # Return original if no split occurred
+    # Return original expression if no split occurred
     return parts if len(parts) > 1 else [expr]
 
 
@@ -155,15 +167,18 @@ def _split_on_operator(expr: str, operator: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def _parse_leaf(expr: str) -> dict:
-    """Parse a single KQL clause (no AND/OR/NOT) into an ES query dict.
+    """Parse a single KQL clause (no top-level AND/OR/NOT) into an ES query dict.
 
     Handles in order:
-      1. Parenthesised group → recurse
-      2. Nested field query  → field:{ sub AND sub }
-      3. Range query         → field >= value
-      4. Term set            → field: (v1 OR v2)
-      5. Wildcard/exists     → field: * or field: val*
-      6. Term/match          → field: "value" or field: value
+      1. Parenthesised group   → recurse into inner expression
+      2. Nested field query    → field:{ sub AND sub }
+      3. Range query           → field >= value / field <= value
+      4. Term set              → field: (v1 OR v2)
+      5. Exists                → field: *
+      6. Wildcard              → field: val*
+      7. Quoted term           → field: "value"  (exact keyword match)
+      8. Unquoted match        → field: value    (full-text search)
+      9. Fallback              → multi_match across all fields
 
     Args:
         expr: A single KQL clause string with no top-level boolean operators.
@@ -173,10 +188,9 @@ def _parse_leaf(expr: str) -> dict:
     """
     expr = expr.strip()
 
-    # 1. Unwrap outer parentheses
+    # 1. Unwrap balanced outer parentheses
     if expr.startswith("(") and expr.endswith(")"):
         inner = expr[1:-1].strip()
-        # Only unwrap if parens are balanced and wrap the whole expression
         if _parens_balanced(inner):
             return _parse_expression(inner)
 
@@ -187,26 +201,31 @@ def _parse_leaf(expr: str) -> dict:
     if nested_match:
         field = nested_match.group(1)
         sub_expr = nested_match.group(2).strip()
+        # The nested path is the root field name (before first dot)
+        nested_path = field.split(".")[0]
         inner_query = _parse_expression(sub_expr)
         return {
             "nested": {
-                "path": field.split(".")[0],
+                "path": nested_path,
                 "query": inner_query,
             }
         }
 
-    # 3. Range query: field >= value / field <= value / field > value / field < value
+    # 3. Range query: field >= value / field <= value / field > / field 
+    # Value pattern: word chars, dots, dashes, slashes (covers date math)
+    # Deliberately restricted — does NOT match trailing junk
     range_match = re.match(
-        r"^([\w.@]+)\s*([><=!]{1,2})\s*(.+)$", expr
+        r"^([\w.@]+)\s*([><=!]{1,2})\s*([\w.\-/:]+)$",
+        expr,
     )
     if range_match:
         field = range_match.group(1)
         operator = range_match.group(2).strip()
-        value_raw = range_match.group(3).strip().strip('"').strip("'")
+        value = range_match.group(3).strip().strip('"').strip("'")
         op_map = {">=": "gte", "<=": "lte", ">": "gt", "<": "lt"}
         es_op = op_map.get(operator)
         if es_op:
-            return {"range": {field: {es_op: value_raw}}}
+            return {"range": {field: {es_op: value}}}
 
     # 4. Field-colon expressions
     colon_match = re.match(r"^([\w.@]+)\s*:\s*(.+)$", expr, re.DOTALL)
@@ -219,7 +238,11 @@ def _parse_leaf(expr: str) -> dict:
             return {"exists": {"field": field}}
 
         # 4b. Term set: field: (v1 OR v2 OR v3)
-        if value_part.startswith("(") and value_part.endswith(")"):
+        if (
+            value_part.startswith("(")
+            and value_part.endswith(")")
+            and "OR" in value_part.upper()
+        ):
             inner = value_part[1:-1]
             values = [
                 v.strip().strip('"').strip("'")
@@ -227,22 +250,22 @@ def _parse_leaf(expr: str) -> dict:
             ]
             return {"terms": {field: values}}
 
-        # 4c. Wildcard: field: val* or field: *val*
+        # 4c. Wildcard: field: val* (no quotes, contains asterisk)
         if "*" in value_part and not value_part.startswith('"'):
             value_clean = value_part.strip("'\"")
             return {"wildcard": {field: {"value": value_clean}}}
 
-        # 4d. Quoted string → term (exact keyword match)
+        # 4d. Quoted string → term query (exact keyword match)
         quoted = re.match(r'^"(.+)"$', value_part) or re.match(
             r"^'(.+)'$", value_part
         )
         if quoted:
             return {"term": {field: quoted.group(1)}}
 
-        # 4e. Unquoted → match (full-text search)
+        # 4e. Unquoted → match query (full-text search)
         return {"match": {field: value_part}}
 
-    # Fallback: treat as multi-match across all fields
+    # Fallback — treat entire expression as multi-match across all fields
     return {"multi_match": {"query": expr, "fields": ["*"]}}
 
 
@@ -251,13 +274,13 @@ def _parse_leaf(expr: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def _parens_balanced(expr: str) -> bool:
-    """Check that parentheses in an expression are balanced.
+    """Check that parentheses and braces in an expression are balanced.
 
     Args:
-        expr: Any string to check.
+        expr: Any string to check for balanced delimiters.
 
     Returns:
-        True if all opening parens have matching closing parens.
+        True if all opening delimiters have matching closing ones.
     """
     depth = 0
     for char in expr:
