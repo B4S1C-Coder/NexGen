@@ -285,7 +285,7 @@ gantt
   - Serialises DAG to session state
   - Unit tests: dual-route plan has 3 tasks; logs-only has 2 tasks; T3 lists correct `depends_on`
 
-- [ ] **P3-M4** `[MASTER]` Implement `src/executor.py` — `TaskFetchingUnit`:
+- [x] **P3-M4** `[MASTER]` Implement `src/executor.py` — `TaskFetchingUnit`:
   - Dispatches independent tasks concurrently with `asyncio.gather`
   - Timeout handling per task (30 s); single retry with back-off (1 s → 2 s)
   - Marks failed tasks with appropriate error code
