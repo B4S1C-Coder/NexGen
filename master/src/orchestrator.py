@@ -106,12 +106,24 @@ class MasterOrchestrator:
             valid_hypothesis = None
             for cycle in range(3):
                 hypotheses = await self.reasoner.reason(synthesis_input)
-                if progress_callback: await progress_callback({"stage": "reasoner", "cycle": cycle + 1, "hypotheses": [h.model_dump() for h in hypotheses]})
                 
                 for h in hypotheses:
-                    if await self.validator.validate(h, synthesis_input):
-                        valid_hypothesis = h
-                        break
+                    h.is_accepted = False
+                    try:
+                        if await self.validator.validate(h, synthesis_input):
+                            h.is_accepted = True
+                            valid_hypothesis = h
+                            break
+                    except Exception as e:
+                        if "E008" in type(e).__name__:
+                            h.is_accepted = False
+                            h.contradictions += 2
+                            h.description += f" [Rejected: {str(e)}]"
+                        else:
+                            raise e
+                            
+                # Flash trace output AFTER validators process the cycle
+                if progress_callback: await progress_callback({"stage": "reasoner", "cycle": cycle + 1, "hypotheses": [h.model_dump() for h in hypotheses]})
                         
                 if valid_hypothesis:
                     break

@@ -29,14 +29,53 @@ if "messages" not in st.session_state:
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
+def render_trace_cards(trace_steps):
+    for step in trace_steps:
+        stage = step.get("stage", "working")
+        with st.container(border=True):
+            if stage == "session":
+                st.info(f"**Session Management:** {step.get('msg', 'Loaded')}")
+            elif stage == "intent":
+                st.markdown("#### 🎯 Intent Classification")
+                data = step.get("data", {})
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Logs Needed", str(data.get("logs_needed")))
+                c2.metric("Docs Needed", str(data.get("docs_needed")))
+                c3.metric("Quantitative", str(data.get("is_quantitative")))
+                c4.metric("Qualitative", str(data.get("is_qualitative")))
+            elif stage == "planner":
+                st.markdown("#### 🗺️ DAG Planner")
+                data = step.get("data", {})
+                for node in data.get("nodes", []):
+                    st.markdown(f"- **{node.get('action_type')}** (step: `{node.get('step_id')[:8]}`) -> deps: `{node.get('dependencies', [])}`")
+            elif stage == "executor":
+                st.markdown("#### ⚡ DAG Executor")
+                metrics = step.get("metrics", {})
+                st.success(f"Execution complete. Logs fetched: `{metrics.get('logs_fetched')}` | Docs fetched: `{metrics.get('docs_fetched')}`")
+            elif stage == "reasoner":
+                cycle = step.get("cycle", 1)
+                st.markdown(f"#### 🧠 Reasoner (Cycle {cycle})")
+                for i, hyp in enumerate(step.get("hypotheses", [])):
+                    icon = "✅" if hyp.get("is_accepted") else "❌"
+                    st.markdown(f"{icon} **Hypothesis {i+1}**: {hyp.get('description', '')} \n*(Support: `{hyp.get('supporting_evidence_count')}`, Contradictions: `{hyp.get('contradictions')}`)*")
+            elif stage == "final":
+                st.markdown("#### 🏁 Final RCA Synthesis")
+                data = step.get("data", {})
+                score = data.get("confidence", 0) * 100
+                st.write(data.get("root_cause_summary", "Synthesis generated no summary."))
+                
+                # Protect Progress bar mapping bounds correctly natively
+                safe_score = max(0.0, min(100.0, score))
+                st.progress(safe_score / 100.0, text=f"Confidence: {safe_score:.1f}%")
+
 # Render visible historical chat layout natively
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         # Optionally render expanders if retained historically
         if "trace" in msg:
-            with st.expander("Pipeline Trace Details"):
-                st.json(msg["trace"])
+            with st.expander("View Pipeline Breakdown", expanded=False):
+                render_trace_cards(msg["trace"])
 
 if prompt := st.chat_input("Ask NexGen to analyze a generic failure (e.g. 'Why did the gateway timeout at 09:50?')"):
     # Append strictly visible query state
@@ -75,8 +114,8 @@ if prompt := st.chat_input("Ask NexGen to analyze a generic failure (e.g. 'Why d
         
         st.markdown(f"**RCA Summary:** {summary_text} (Confidence: {confidence*100:.1f}%)")
         
-        with st.expander("Detailed Reasoning Trace & Extracted Logic Logs"):
-            st.json(trace_steps)
+        with st.expander("View Pipeline Breakdown", expanded=True):
+            render_trace_cards(trace_steps)
 
     st.session_state.messages.append({
         "role": "assistant", 
