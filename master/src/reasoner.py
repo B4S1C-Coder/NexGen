@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 from typing import Optional, List
@@ -98,7 +99,7 @@ class ReasonerAgent:
         
         try:
             response = await self.llm.chat.completions.create(
-                model="qwen-3.5_4B_Q4_K_M",
+                model=os.getenv("OPENAI_MODEL_NAME", "llama3.2"),
                 messages=[
                     {"role": "system", "content": self.prompt_template},
                     {"role": "user", "content": json.dumps(payload)}
@@ -106,8 +107,11 @@ class ReasonerAgent:
                 response_format={"type": "json_object"},
                 temperature=0.3
             )
-            raw = response.choices[0].message.content
-            data = json.loads(raw)
+            raw = response.choices[0].message.content.strip()
+            if raw.startswith("```json"): raw = raw[7:]
+            if raw.startswith("```"): raw = raw[3:]
+            if raw.endswith("```"): raw = raw[:-3]
+            data = json.loads(raw.strip())
             
             nodes = []
             for i, h in enumerate(data.get("hypotheses", [])[:self.max_branches]):
