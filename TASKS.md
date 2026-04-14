@@ -279,7 +279,7 @@ gantt
   - Returns `IntentResult` as specified in `master.md §3.2`
   - Unit tests: "count HTTP 500s" → `is_quantitative=True, logs_needed=True, docs_needed=False`; "best practice for node sizing" → `logs_needed=False, docs_needed=True`; 40-query fixture set ≥ 95 % accuracy
 
-- [ ] **P3-M3** `[MASTER]` Implement `src/planner.py` — `DAGPlanner`:
+- [x] **P3-M3** `[MASTER]` Implement `src/planner.py` — `DAGPlanner`:
   - `plan(intent: IntentResult, request: LogRetrievalRequest | None, ...) -> list[Task]`
   - Generates T1 (log retrieval) and/or T2 (knowledge) tasks with correct `depends_on`; T3 always depends on completed T1/T2
   - Serialises DAG to session state
