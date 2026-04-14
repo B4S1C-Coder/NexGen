@@ -291,7 +291,7 @@ gantt
   - Marks failed tasks with appropriate error code
   - Unit test (mocked HTTP): two parallel tasks both complete; one task failing raises correct error code
 
-- [ ] **P3-M5** `[MASTER]` Implement `src/context.py` — `ContextAssembler`:
+- [x] **P3-M5** `[MASTER]` Implement `src/context.py` — `ContextAssembler`:
   - `assemble(log_result, knowledge_result, intent) -> RCASynthesisInput`
   - `is_context_sufficient(...)` as defined in `master.md §3.5`
   - Sliding-window pruning to `MAX_SYNTHESIS_TOKENS`; LongContextReorder applied
@@ -313,7 +313,7 @@ gantt
   - Up to `MAX_VALIDATOR_CYCLES` rounds; on exhaustion synthesises low-confidence report
   - Unit tests: non-existent topology edge → `E008`; hypothesis with zero knowledge support → REJECT
 
-- [ ] **P3-M8** `[MASTER]` Implement `src/synthesiser.py` — `RCASynthesiser`:
+- [x] **P3-M8** `[MASTER]` Implement `src/synthesiser.py` — `RCASynthesiser`:
   - Builds synthesis prompt from `prompts/synthesiser.txt`; calls Llama 3.2
   - Parses JSON response into `RCAReport`
   - Computes confidence score using formula from `master.md §3.8`
