@@ -25,10 +25,14 @@ class IntentClassifier:
         self.troubleshooting_patterns = [r"\bwhy\b", r"\bfailed\b", r"\berror\b", r"\bcause\b"]
 
         try:
-            with open("prompts/intent.txt", "r") as f:
+            with open("src/prompts/intent.txt", "r") as f:
                 self.llm_prompt = f.read()
         except FileNotFoundError:
-            self.llm_prompt = "You are an intent classifier."
+            try:
+                with open("prompts/intent.txt", "r") as f:
+                    self.llm_prompt = f.read()
+            except FileNotFoundError:
+                self.llm_prompt = "You are an intent classifier."
     
     async def classify(self, raw_text: str) -> IntentResult:
         """
