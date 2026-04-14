@@ -272,7 +272,7 @@ gantt
   - `trim_context(state: SessionState) -> SessionState` — sliding window pruning to 20 messages; LongContextReorder on the remaining messages
   - Unit test (mocked Redis): `put` then `get` returns identical `SessionState`; `trim_context` on 25 messages returns 20
 
-- [ ] **P3-M2** `[MASTER]` Implement `src/intent.py` — `IntentClassifier`:
+- [x] **P3-M2** `[MASTER]` Implement `src/intent.py` — `IntentClassifier`:
   - Stage 1: regex / keyword fast path (service names, time expressions, quantitative keywords)
   - Stage 2: OATS embedding similarity (`nomic-embed-text` + Qdrant lookup on intent prototype vectors)
   - Stage 3: LLM fallback (Llama 3.2, prompt from `prompts/intent.txt`)
