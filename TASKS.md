@@ -304,7 +304,7 @@ gantt
   - Returns `list[AcceptedHypothesis]` (at least 1, at most 3)
   - Unit test (mocked LLM): hypothesis with 3 contradictions pruned; 1 hypothesis accepted when evidence is clear
 
-- [ ] **P3-M7** `[MASTER]` Implement `src/validator.py` — `ValidatorAgent`:
+- [x] **P3-M7** `[MASTER]` Implement `src/validator.py` — `ValidatorAgent`:
   - Loads `config/topology.json`
   - Topology check: raises `NexGenError("E008")` for non-existent service edge
   - Log timestamp consistency check

@@ -1,0 +1,8 @@
+{
+  "payments": {
+    "dependencies": ["db-primary", "auth-service"]
+  },
+  "gateway": {
+    "dependencies": ["payments", "auth-service"]
+  }
+}
