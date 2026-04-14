@@ -267,46 +267,46 @@ gantt
 
 ### Master LLM Orchestrator
 
-- [ ] **P3-M1** `[MASTER]` Implement `src/session.py` — `SessionManager`:
+- [x] **P3-M1** `[MASTER]` Implement `src/session.py` — `SessionManager`:
   - Redis-backed with `SESSION_TTL_SECONDS`
   - `async def get(session_id) -> SessionState`
   - `async def put(session_id, state: SessionState)`
   - `trim_context(state: SessionState) -> SessionState` — sliding window pruning to 20 messages; LongContextReorder on the remaining messages
   - Unit test (mocked Redis): `put` then `get` returns identical `SessionState`; `trim_context` on 25 messages returns 20
 
-- [ ] **P3-M2** `[MASTER]` Implement `src/intent.py` — `IntentClassifier`:
+- [x] **P3-M2** `[MASTER]` Implement `src/intent.py` — `IntentClassifier`:
   - Stage 1: regex / keyword fast path (service names, time expressions, quantitative keywords)
   - Stage 2: OATS embedding similarity (`nomic-embed-text` + Qdrant lookup on intent prototype vectors)
   - Stage 3: LLM fallback (Llama 3.2, prompt from `prompts/intent.txt`)
   - Returns `IntentResult` as specified in `master.md §3.2`
   - Unit tests: "count HTTP 500s" → `is_quantitative=True, logs_needed=True, docs_needed=False`; "best practice for node sizing" → `logs_needed=False, docs_needed=True`; 40-query fixture set ≥ 95 % accuracy
 
-- [ ] **P3-M3** `[MASTER]` Implement `src/planner.py` — `DAGPlanner`:
+- [x] **P3-M3** `[MASTER]` Implement `src/planner.py` — `DAGPlanner`:
   - `plan(intent: IntentResult, request: LogRetrievalRequest | None, ...) -> list[Task]`
   - Generates T1 (log retrieval) and/or T2 (knowledge) tasks with correct `depends_on`; T3 always depends on completed T1/T2
   - Serialises DAG to session state
   - Unit tests: dual-route plan has 3 tasks; logs-only has 2 tasks; T3 lists correct `depends_on`
 
-- [ ] **P3-M4** `[MASTER]` Implement `src/executor.py` — `TaskFetchingUnit`:
+- [x] **P3-M4** `[MASTER]` Implement `src/executor.py` — `TaskFetchingUnit`:
   - Dispatches independent tasks concurrently with `asyncio.gather`
   - Timeout handling per task (30 s); single retry with back-off (1 s → 2 s)
   - Marks failed tasks with appropriate error code
   - Unit test (mocked HTTP): two parallel tasks both complete; one task failing raises correct error code
 
-- [ ] **P3-M5** `[MASTER]` Implement `src/context.py` — `ContextAssembler`:
+- [x] **P3-M5** `[MASTER]` Implement `src/context.py` — `ContextAssembler`:
   - `assemble(log_result, knowledge_result, intent) -> RCASynthesisInput`
   - `is_context_sufficient(...)` as defined in `master.md §3.5`
   - Sliding-window pruning to `MAX_SYNTHESIS_TOKENS`; LongContextReorder applied
   - Unit tests: empty log hits → `is_context_sufficient=False`; pruning on 200 log hits produces output ≤ token budget
 
-- [ ] **P3-M6** `[MASTER]` Implement `src/reasoner.py` — `ReasonerAgent` (Tree of Thoughts):
+- [x] **P3-M6** `[MASTER]` Implement `src/reasoner.py` — `ReasonerAgent` (Tree of Thoughts):
   - Generates 3 hypotheses from assembled context using prompt `prompts/reasoner.txt`
   - Best-First Search evaluation; pruning on 2+ contradictions
   - Max depth 3, max branches 3
   - Returns `list[AcceptedHypothesis]` (at least 1, at most 3)
   - Unit test (mocked LLM): hypothesis with 3 contradictions pruned; 1 hypothesis accepted when evidence is clear
 
-- [ ] **P3-M7** `[MASTER]` Implement `src/validator.py` — `ValidatorAgent`:
+- [x] **P3-M7** `[MASTER]` Implement `src/validator.py` — `ValidatorAgent`:
   - Loads `config/topology.json`
   - Topology check: raises `NexGenError("E008")` for non-existent service edge
   - Log timestamp consistency check
@@ -315,7 +315,7 @@ gantt
   - Up to `MAX_VALIDATOR_CYCLES` rounds; on exhaustion synthesises low-confidence report
   - Unit tests: non-existent topology edge → `E008`; hypothesis with zero knowledge support → REJECT
 
-- [ ] **P3-M8** `[MASTER]` Implement `src/synthesiser.py` — `RCASynthesiser`:
+- [x] **P3-M8** `[MASTER]` Implement `src/synthesiser.py` — `RCASynthesiser`:
   - Builds synthesis prompt from `prompts/synthesiser.txt`; calls Llama 3.2
   - Parses JSON response into `RCAReport`
   - Computes confidence score using formula from `master.md §3.8`
