@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 from typing import Optional, List
@@ -56,7 +57,7 @@ class ValidatorAgent:
         
         try:
             res = await self.llm.chat.completions.create(
-                model="llama3.2",
+                model=os.getenv("OPENAI_MODEL_NAME", "llama3.2"),
                 messages=[
                     {"role": "system", "content": self.prompt_template},
                     {"role": "user", "content": json.dumps(payload)}
@@ -64,8 +65,11 @@ class ValidatorAgent:
                 response_format={"type": "json_object"},
                 temperature=0.1
             )
-            raw = res.choices[0].message.content
-            data = json.loads(raw)
+            raw = res.choices[0].message.content.strip()
+            if raw.startswith("```json"): raw = raw[7:]
+            if raw.startswith("```"): raw = raw[3:]
+            if raw.endswith("```"): raw = raw[:-3]
+            data = json.loads(raw.strip())
             critique = ValidatorCritique(**data)
             
             if not critique.is_valid:

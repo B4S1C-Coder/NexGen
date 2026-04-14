@@ -1,3 +1,4 @@
+import os
 import re
 import json
 from typing import Optional, List, Dict
@@ -24,10 +25,14 @@ class IntentClassifier:
         self.troubleshooting_patterns = [r"\bwhy\b", r"\bfailed\b", r"\berror\b", r"\bcause\b"]
 
         try:
-            with open("prompts/intent.txt", "r") as f:
+            with open("src/prompts/intent.txt", "r") as f:
                 self.llm_prompt = f.read()
         except FileNotFoundError:
-            self.llm_prompt = "You are an intent classifier."
+            try:
+                with open("prompts/intent.txt", "r") as f:
+                    self.llm_prompt = f.read()
+            except FileNotFoundError:
+                self.llm_prompt = "You are an intent classifier."
     
     async def classify(self, raw_text: str) -> IntentResult:
         """
@@ -73,7 +78,7 @@ class IntentClassifier:
     async def _llm_classify(self, raw_text: str) -> IntentResult:
         """Pings the local llama.cpp server and enforces the JSON output schema."""
         response = await self.llm.chat.completions.create(
-            model="qwen-3.5_4B_Q4_K_M",  # Default local llama model name
+            model=os.getenv("OPENAI_MODEL_NAME", "llama3.2"),  # Default local llama model name
             messages=[
                 {"role": "system", "content": self.llm_prompt},
                 {"role": "user", "content": raw_text}
@@ -82,5 +87,9 @@ class IntentClassifier:
             temperature=0.1
         )
 
-        data = json.loads(response.choices[0].message.content)
+        raw = response.choices[0].message.content.strip()
+        if raw.startswith("```json"): raw = raw[7:]
+        if raw.startswith("```"): raw = raw[3:]
+        if raw.endswith("```"): raw = raw[:-3]
+        data = json.loads(raw.strip())
         return IntentResult(**data)

@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 from typing import Optional, List, Dict, Any
@@ -37,7 +38,7 @@ class RCASynthesiser:
             "docs": docs.model_dump() if docs else None
         }
         
-        user_content = json.dumps(context_payload)
+        user_content = json.dumps(context_payload, default=str)
 
         # Baseline fallback without LLM client setup
         if not self.llm:
@@ -45,7 +46,7 @@ class RCASynthesiser:
 
         try:
             response = await self.llm.chat.completions.create(
-                model="llama3.2",
+                model=os.getenv("OPENAI_MODEL_NAME", "llama3.2"),
                 messages=[
                     {"role": "system", "content": self.prompt_template},
                     {"role": "user", "content": user_content}
@@ -53,8 +54,11 @@ class RCASynthesiser:
                 response_format={"type": "json_object"},
                 temperature=0.2
             )
-            raw_response = response.choices[0].message.content
-            report_data = json.loads(raw_response)
+            raw_response = response.choices[0].message.content.strip()
+            if raw_response.startswith("```json"): raw_response = raw_response[7:]
+            if raw_response.startswith("```"): raw_response = raw_response[3:]
+            if raw_response.endswith("```"): raw_response = raw_response[:-3]
+            report_data = json.loads(raw_response.strip())
             
             # Boundary enforcement logic exactly mapped to P3-M5 specifications
             if "confidence" in report_data:
