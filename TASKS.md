@@ -103,6 +103,8 @@ gantt
 - [ ] **P1-Q2** `[QUERY]` Implement `src/executor.py` — `ElasticsearchExecutor`:
   - Initialise `AsyncElasticsearch` client from env config
   - `async def execute(kql: str, schema_ctx: SchemaContext, max_results: int) -> tuple[list[dict], int]` — returns (hits, total)
+  NOTE: Implemented as ExecutorResult dataclass instead of tuple to also
+  carry timed_out and shards_failed fields needed for status="partial" logic.
   - `kql_dsl.py` — minimal KQL→DSL transpiler handling: term queries (`field: "value"`), range queries (`@timestamp >= now-1h`), boolean AND/OR/NOT, pipe chain stripping
   - On `ConnectionError` raise `NexGenError("E003")`
   - Integration test (requires running ES): simple term query returns expected document from a seeded index

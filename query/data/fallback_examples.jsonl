@@ -1,0 +1,10 @@
+{"id": "fe-001", "nl": "Show all ERROR logs from the auth service in the last 1 hour", "kql": "service.name: \"auth\" AND log.level: \"ERROR\" AND @timestamp >= now-1h"}
+{"id": "fe-002", "nl": "Show HTTP 500 errors from the payments service in the last 30 minutes", "kql": "service.name: \"payments\" AND http.status_code: 500 AND @timestamp >= now-30m"}
+{"id": "fe-003", "nl": "Find all logs with trace ID abc123", "kql": "trace.id: \"abc123\""}
+{"id": "fe-004", "nl": "Show WARN and ERROR logs from any service in the last 2 hours", "kql": "log.level: (\"ERROR\" OR \"WARN\") AND @timestamp >= now-2h"}
+{"id": "fe-005", "nl": "Find database connection errors in the last 15 minutes", "kql": "message: \"connection refused\" AND log.level: \"ERROR\" AND @timestamp >= now-15m"}
+{"id": "fe-006", "nl": "Show all 4xx HTTP responses from the gateway service", "kql": "service.name: \"gateway\" AND http.status_code >= 400 AND http.status_code < 500"}
+{"id": "fe-007", "nl": "Find requests where response time exceeded 5 seconds", "kql": "http.response_time_ms > 5000"}
+{"id": "fe-008", "nl": "Show all logs from the orders service since start of today", "kql": "service.name: \"orders\" AND @timestamp >= now/d"}
+{"id": "fe-009", "nl": "Find all production environment ERROR logs", "kql": "environment: \"production\" AND log.level: \"ERROR\""}
+{"id": "fe-010", "nl": "Show logs where the message field contains timeout", "kql": "message: \"timeout\""}
