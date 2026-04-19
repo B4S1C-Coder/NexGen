@@ -63,7 +63,7 @@ gantt
 
 ### NL-to-KQL Pipeline
 
-- [ ] **P0-Q1** `[QUERY]` Scaffold the `query/` service:
+- [x] **P0-Q1** `[QUERY]` Scaffold the `query/` service:
   - `pyproject.toml` (deps: `fastapi`, `uvicorn`, `httpx`, `elasticsearch[async]`, `qdrant-client`, `pydantic-settings`, `nexgen_shared`)
   - `.env.example` (copy from `query.md §5`)
   - `src/main.py` — FastAPI app with:
@@ -93,14 +93,14 @@ gantt
 
 ### NL-to-KQL Pipeline
 
-- [ ] **P1-Q1** `[QUERY]` Implement `src/schema_linker.py` — `SchemaContext`, `FieldMeta` dataclasses; `SchemaLinker` class that:
+- [x] **P1-Q1** `[QUERY]` Implement `src/schema_linker.py` — `SchemaContext`, `FieldMeta` dataclasses; `SchemaLinker` class that:
   - On startup, fetches all index mappings from Elasticsearch via `GET /_mapping` and stores them in `_cache: dict[str, list[FieldMeta]]`
   - Exposes `async def refresh_cache()` refreshed on a background task every `SCHEMA_CACHE_REFRESH_INTERVAL_SECONDS`
   - Exposes `async def link(natural_language: str, index_hints: list[str], schema_context_from_request: dict) -> SchemaContext`
   - Correctly marks `is_nested=True` for fields of ES type `nested`
   - Unit tests: nested field annotation; index-hint filtering; cache refresh updates `last_refreshed`
 
-- [ ] **P1-Q2** `[QUERY]` Implement `src/executor.py` — `ElasticsearchExecutor`:
+- [x] **P1-Q2** `[QUERY]` Implement `src/executor.py` — `ElasticsearchExecutor`:
   - Initialise `AsyncElasticsearch` client from env config
   - `async def execute(kql: str, schema_ctx: SchemaContext, max_results: int) -> tuple[list[dict], int]` — returns (hits, total)
   NOTE: Implemented as ExecutorResult dataclass instead of tuple to also
@@ -109,7 +109,7 @@ gantt
   - On `ConnectionError` raise `NexGenError("E003")`
   - Integration test (requires running ES): simple term query returns expected document from a seeded index
 
-- [ ] **P1-Q3** `[QUERY]` Create Qdrant collections for few-shot examples:
+- [x] **P1-Q3** `[QUERY]` Create Qdrant collections for few-shot examples:
   - Script `scripts/init_qdrant.py` that creates `nexgen_few_shot` collection (768-dim, cosine)
   - `data/fallback_examples.jsonl` — at least 10 diverse NLQ→KQL pairs covering: time-range filter, service filter, log-level filter, nested field, aggregation count, multi-field AND, multi-field OR
   - Script `scripts/seed_few_shot.py` that embeds and upserts `fallback_examples.jsonl` into Qdrant
@@ -143,13 +143,13 @@ gantt
 
 ### NL-to-KQL Pipeline
 
-- [ ] **P2-Q1** `[QUERY]` Implement `src/few_shot.py` — `FewShotSelector`:
+- [x] **P2-Q1** `[QUERY]` Implement `src/few_shot.py` — `FewShotSelector`:
   - `async def select(natural_language: str, schema_ctx: SchemaContext) -> list[FewShotExample]`
   - Embeds query, queries Qdrant `nexgen_few_shot`, filters by index pattern, returns top-k
   - Falls back to `fallback_examples.jsonl` when fewer than 2 results above threshold
   - Unit tests: returns ≤ `FEW_SHOT_K` examples; cold-start fallback triggered correctly
 
-- [ ] **P2-Q2** `[QUERY]` Implement `src/generator.py` — `KQLGenerator`:
+- [x] **P2-Q2** `[QUERY]` Implement `src/generator.py` — `KQLGenerator`:
   - Loads prompt template from `prompts/generator.txt`
   - Calls Ollama with `QUERY_LLM_MODEL`, temperature 0.05
   - Strips any markdown fences from response
