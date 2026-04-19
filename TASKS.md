@@ -130,7 +130,7 @@ gantt
   - Skip `disentangle` for non-Slack sources (stub `disentangle` to identity for now)
   - Unit tests: IP address tagged; chunk count within expected range for a 1000-token runbook; authority tier assigned correctly per source type
 
-- [ ] **P1-R3** `[RAG]` Create Qdrant collections and implement `POST /ingest` endpoint:
+- [x] **P1-R3** `[RAG]` Create Qdrant collections and implement `POST /ingest` endpoint:
   - Script `scripts/init_qdrant_rag.py` — creates `nexgen_dense` (768-dim, cosine) and `nexgen_bm25_terms` (sparse) collections
   - Implement `POST /ingest` handler that: calls the target connector, passes docs through `Preprocessor`, embeds via `nomic-embed-text` (Ollama), upserts into `nexgen_dense`; stores BM25 term vectors in `nexgen_bm25_terms`
   - Integration test: ingest 5 fixture docs → Qdrant `nexgen_dense` point count increases by expected chunk count
