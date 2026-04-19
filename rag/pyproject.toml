@@ -16,6 +16,8 @@ dependencies = [
   "pydantic-settings>=2.2",
   "sentence-transformers>=2.7",
   "transformers>=4.40",
+  "python-frontmatter>=1.1",
+  "pypdf>=4.2",
   "nexgen-shared",
 ]
 
