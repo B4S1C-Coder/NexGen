@@ -75,7 +75,7 @@ gantt
 
 ### RAG / Contextual Pipeline
 
-- [ ] **P0-R1** `[RAG]` Scaffold the `rag/` service:
+- [x] **P0-R1** `[RAG]` Scaffold the `rag/` service:
   - `pyproject.toml` (deps: `fastapi`, `uvicorn`, `httpx`, `qdrant-client`, `pydantic-settings`, `nexgen_shared`, `sentence-transformers`, `transformers`)
   - `.env.example` (copy from `rag.md §8`)
   - `src/main.py` — FastAPI app with:
