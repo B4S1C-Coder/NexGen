@@ -123,7 +123,7 @@ gantt
   - `LocalFileConnector` — reads `.md`, `.txt`, `.pdf` files from `data/docs/`; uses `python-frontmatter` for YAML metadata; falls back to filename for `source_uri`
   - Unit tests: `LocalFileConnector.fetch()` returns `RawDocument` list for a directory of 3 fixture files
 
-- [ ] **P1-R2** `[RAG]` Implement `src/preprocessor.py` — `Preprocessor` class:
+- [x] **P1-R2** `[RAG]` Implement `src/preprocessor.py` — `Preprocessor` class:
   - `chunk(doc: RawDocument) -> list[ProcessedChunk]` using strategy table from `rag.md §3.2`
   - `tag_technical_ids(text: str) -> str` — applies all regex patterns from `rag.md §3.2` (IP, trace ID, hash, path, error code)
   - `enrich_metadata(chunk: ProcessedChunk, doc: RawDocument) -> ChunkMetadata` — assigns authority tier, resolution status, recency score (`recency_score = 1.0` at index time; decayed at query time)
