@@ -117,7 +117,7 @@ gantt
 
 ### RAG / Contextual Pipeline
 
-- [ ] **P1-R1** `[RAG]` Implement `src/connectors/base.py` and `src/connectors/local_file.py`:
+- [x] **P1-R1** `[RAG]` Implement `src/connectors/base.py` and `src/connectors/local_file.py`:
   - `BaseConnector` ABC as specified in `rag.md §3.1`
   - `RawDocument` dataclass
   - `LocalFileConnector` — reads `.md`, `.txt`, `.pdf` files from `data/docs/`; uses `python-frontmatter` for YAML metadata; falls back to filename for `source_uri`
