@@ -1,7 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "rag"
 version = "0.1.0"
-description = "Add your description here"
+description = "NexGen RAG / Contextual Pipeline"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "httpx>=0.27",
+  "qdrant-client>=1.9",
+  "pydantic-settings>=2.2",
+  "sentence-transformers>=2.7",
+  "transformers>=4.40",
+  "nexgen-shared",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.uv.sources]
+nexgen-shared = { path = "../nexgen_shared" }
