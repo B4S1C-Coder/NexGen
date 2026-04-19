@@ -160,7 +160,7 @@ gantt
   - Return `ValidationResult(valid, errors, ast)`
   - Unit tests: 5 valid KQL strings → `valid=True`; 5 invalid strings (missing paren, bad operator, hallucinated field) → `valid=False` with descriptive errors
 
-- [ ] **P2-Q4** `[QUERY]` Implement `src/repair.py` — `RepairAgent`:
+- [x] **P2-Q4** `[QUERY]` Implement `src/repair.py` — `RepairAgent`:
   - Loads `prompts/repair.txt`
   - Retry loop up to `MAX_REPAIR_ATTEMPTS`; raises `NexGenError("E002")` on exhaustion
   - Tracks `refinement_attempts` counter
