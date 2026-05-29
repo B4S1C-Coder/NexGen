@@ -166,7 +166,7 @@ gantt
   - Tracks `refinement_attempts` counter
   - Unit test (mocked Ollama + mocked validator): first attempt invalid → second attempt valid → counter = 2
 
-- [ ] **P2-Q5** `[QUERY]` Implement `src/pii.py` — `PIIMasker`:
+- [x] **P2-Q5** `[QUERY]` Implement `src/pii.py` — `PIIMasker`:
   - All regex patterns from `query.md §3.7`
   - `mask(hits: list[dict]) -> list[dict]` applies patterns to all string values in hit dicts recursively
   - Preserves trace IDs as `<TRACE_ID:value>` rather than deleting them
