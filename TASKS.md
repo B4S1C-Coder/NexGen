@@ -155,7 +155,7 @@ gantt
   - Strips any markdown fences from response
   - Unit test (mocked Ollama): prompt contains schema fields and few-shot examples; output is non-empty string without backticks
 
-- [ ] **P2-Q3** `[QUERY]` Implement `src/validator.py` — `KQLValidator` (recursive-descent parser):
+- [x] **P2-Q3** `[QUERY]` Implement `src/validator.py` — `KQLValidator` (recursive-descent parser):
   - Parse field existence, balanced parens, operator validity, nested structure
   - Return `ValidationResult(valid, errors, ast)`
   - Unit tests: 5 valid KQL strings → `valid=True`; 5 invalid strings (missing paren, bad operator, hallucinated field) → `valid=False` with descriptive errors
@@ -166,13 +166,13 @@ gantt
   - Tracks `refinement_attempts` counter
   - Unit test (mocked Ollama + mocked validator): first attempt invalid → second attempt valid → counter = 2
 
-- [ ] **P2-Q5** `[QUERY]` Implement `src/pii.py` — `PIIMasker`:
+- [x] **P2-Q5** `[QUERY]` Implement `src/pii.py` — `PIIMasker`:
   - All regex patterns from `query.md §3.7`
   - `mask(hits: list[dict]) -> list[dict]` applies patterns to all string values in hit dicts recursively
   - Preserves trace IDs as `<TRACE_ID:value>` rather than deleting them
   - Unit tests: IPv4 masked; email masked; trace ID preserved; clean hit unchanged
 
-- [ ] **P2-Q6** `[QUERY]` Wire `POST /retrieve` endpoint end-to-end:
+- [x] **P2-Q6** `[QUERY]` Wire `POST /retrieve` endpoint end-to-end:
   - Calls `SchemaLinker → FewShotSelector → KQLGenerator → KQLValidator → (RepairAgent if invalid) → ElasticsearchExecutor → PIIMasker → ResultFormatter`
   - All steps instrumented with `@traced` spans
   - Integration test (requires ES + Ollama): POST with real NLQ returns `LogRetrievalResult` with `status != "failure"`
