@@ -16,3 +16,4 @@ dist/
 **/__pycache__
 
 query/.env
+vendor/llama.cpp/build/
