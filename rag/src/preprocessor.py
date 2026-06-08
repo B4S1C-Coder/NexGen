@@ -51,6 +51,25 @@ class ChunkMetadata:
     recency_score: float
 
 
+@dataclass(slots=True)
+class RankedChunk:
+    """A chunk retrieved from Qdrant, optionally reranked.
+
+    Parameters:
+        chunk_id: Stable chunk identifier.
+        content: The text payload of the chunk.
+        metadata: Enriched metadata for the chunk.
+        score: Initial retrieval score (e.g. from Dense or Sparse search).
+        cross_encoder_score: Reranked score, populated post-retrieval.
+    """
+
+    chunk_id: str
+    content: str
+    metadata: ChunkMetadata
+    score: float
+    cross_encoder_score: float | None = None
+
+
 class Preprocessor:
     """Prepare raw source documents for retrieval-time indexing."""
 
