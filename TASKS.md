@@ -179,12 +179,12 @@ gantt
 
 ### RAG / Contextual Pipeline
 
-- [ ] **P2-R1** `[RAG]` Implement `src/temporal.py` — `TemporalFilter`:
+- [x] **P2-R1** `[RAG]` Implement `src/temporal.py` — `TemporalFilter`:
   - `build_qdrant_filter(request: KnowledgeRequest) -> models.Filter` — Qdrant payload filter excluding docs after `not_after`
   - `apply_recency_decay(chunks: list[RankedChunk], lambda_: float) -> list[RankedChunk]` — modifies `score` in-place using exponential decay formula from `rag.md §4.1`
   - Unit tests: doc with `created_at` after `not_after` excluded; recency decay reduces score for 50-day-old doc to ~37 % of original
 
-- [ ] **P2-R2** `[RAG]` Implement `src/dense.py` — `DenseRetriever`:
+- [x] **P2-R2** `[RAG]` Implement `src/dense.py` — `DenseRetriever`:
   - Embed query via Ollama `nomic-embed-text`
   - Query `nexgen_dense` with Qdrant filter from `TemporalFilter`
   - Return `list[RankedChunk]` with raw similarity scores
