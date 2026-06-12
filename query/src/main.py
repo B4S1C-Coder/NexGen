@@ -1,19 +1,30 @@
 """FastAPI application entry-point for the NL-to-KQL Pipeline service.
 
-Exposes three endpoints as defined in AGENTS.md §6.1:
+Exposes endpoints as defined in AGENTS.md §6.1:
 - POST /retrieve  — translate NL to KQL and fetch log rows
 - GET  /health    — liveness probe
 - GET  /schema-cache/status — index-schema cache freshness
+- GET  /metrics   — Prometheus metrics (P3-Q2)
 
 P2-Q6: Full pipeline wired — all components connected.
+P3-Q2: Prometheus metrics endpoint added.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from prometheus_client import (
+    Histogram,
+    Counter,
+    Gauge,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from nexgen_shared.schemas import (
@@ -60,6 +71,27 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics (P3-Q2)
+# ---------------------------------------------------------------------------
+
+QUERY_LATENCY = Histogram(
+    "nexgen_query_latency_seconds",
+    "End-to-end latency of the /retrieve pipeline in seconds",
+    buckets=(0.5, 1, 2, 3, 5, 6, 10, 15),
+)
+
+REFINEMENT_ATTEMPTS = Counter(
+    "nexgen_query_refinement_attempts_total",
+    "Total KQL repair attempts across all queries",
+)
+
+SCHEMA_CACHE_AGE = Gauge(
+    "nexgen_schema_cache_age_seconds",
+    "Seconds since the schema cache was last refreshed",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +158,10 @@ async def retrieve(request: LogRetrievalRequest) -> LogRetrievalResult:
         4. ElasticsearchExecutor.execute()→ ExecutorResult
         5. PIIMasker.mask()              → cleaned hits
         6. Assemble LogRetrievalResult
+
+    P3-Q2: records pipeline latency (always) and refinement attempts.
     """
+    start = time.perf_counter()          # P3-Q2
     refinement_attempts = 0
 
     try:
@@ -173,6 +208,8 @@ async def retrieve(request: LogRetrievalRequest) -> LogRetrievalResult:
             )
             for h in clean_hits
         ]
+
+        REFINEMENT_ATTEMPTS.inc(refinement_attempts)   # P3-Q2
 
         return LogRetrievalResult(
             query_id=request.query_id,
@@ -236,6 +273,30 @@ async def retrieve(request: LogRetrievalRequest) -> LogRetrievalResult:
             hit_count=0,
             error=f"Unexpected error: {exc}",
         )
+
+    finally:
+        QUERY_LATENCY.observe(time.perf_counter() - start)   # P3-Q2
+
+
+# ---------------------------------------------------------------------------
+# GET /metrics  (P3-Q2)
+# ---------------------------------------------------------------------------
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    """Prometheus scrape endpoint.
+
+    Updates the schema-cache-age gauge from the SchemaLinker's
+    cache_status(), then returns all metrics in Prometheus text format.
+    """
+    status = schema_linker.cache_status()
+    last_refreshed = status.get("last_refreshed")
+    if last_refreshed is not None:
+        refreshed_dt = datetime.fromisoformat(last_refreshed)
+        age = (datetime.now(timezone.utc) - refreshed_dt).total_seconds()
+        SCHEMA_CACHE_AGE.set(age)
+
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # ---------------------------------------------------------------------------
