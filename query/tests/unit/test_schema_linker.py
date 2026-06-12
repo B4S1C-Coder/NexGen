@@ -266,3 +266,84 @@ class TestCacheStatus:
         status = linker.cache_status()
         assert status["index_count"] == 2
         assert status["field_count"] == 3
+
+# ---------------------------------------------------------------------------
+# Tests for P3-Q1 — Qdrant semantic disambiguation
+# ---------------------------------------------------------------------------
+
+from unittest.mock import MagicMock
+from src import schema_linker as schema_linker_module
+
+
+class _FakeHit:
+    """Minimal stand-in for a Qdrant search hit."""
+
+    def __init__(self, index_name: str) -> None:
+        self.payload = {"index_name": index_name}
+
+
+class TestSemanticDisambiguation:
+    """Tests for P3-Q1 Qdrant-based index disambiguation."""
+
+    @pytest.mark.asyncio
+    async def test_price_errors_maps_to_payments_not_orders(
+        self, monkeypatch
+    ) -> None:
+        """Ambiguous 'show me price errors' selects payments via Qdrant.
+
+        No hints are given, so link() falls through to the semantic
+        matcher. Embedding and Qdrant search are mocked so the test runs
+        with no live Ollama or Qdrant.
+        """
+        linker = linker_with_cache(
+            {
+                "payments-2026": [
+                    FieldMeta("amount", "float"),
+                    FieldMeta("price", "float"),
+                ],
+                "orders-2026": [FieldMeta("order_id", "keyword")],
+            }
+        )
+        monkeypatch.setattr(
+            schema_linker_module, "_embed", lambda text, settings: [0.0] * 768
+        )
+        fake_qdrant = MagicMock()
+        fake_qdrant.search.return_value = [_FakeHit("payments-2026")]
+        linker._qdrant = fake_qdrant
+
+        result = await linker.link("show me price errors", [], {})
+
+        assert "payments-2026" in result.selected_indices
+        assert "orders-2026" not in result.selected_indices
+
+    @pytest.mark.asyncio
+    async def test_semantic_returns_empty_without_qdrant(self) -> None:
+        """If the Qdrant client is None, semantic match returns []."""
+        linker = linker_with_cache(
+            {"payments-2026": [FieldMeta("price", "float")]}
+        )
+        linker._qdrant = None
+        assert linker._semantic_match_indices("price errors") == []
+
+    @pytest.mark.asyncio
+    async def test_hints_take_priority_over_semantic(
+        self, monkeypatch
+    ) -> None:
+        """When hints match, semantic search must NOT override them."""
+        linker = linker_with_cache(
+            {
+                "payments-2026": [FieldMeta("price", "float")],
+                "orders-2026": [FieldMeta("order_id", "keyword")],
+            }
+        )
+        monkeypatch.setattr(
+            schema_linker_module, "_embed", lambda text, settings: [0.0] * 768
+        )
+        fake_qdrant = MagicMock()
+        fake_qdrant.search.return_value = [_FakeHit("orders-2026")]
+        linker._qdrant = fake_qdrant
+
+        result = await linker.link("anything", ["payments-*"], {})
+
+        assert "payments-2026" in result.selected_indices
+        assert "orders-2026" not in result.selected_indices        
