@@ -190,7 +190,7 @@ gantt
   - Return `list[RankedChunk]` with raw similarity scores
   - Unit test (requires running Qdrant with seeded data): known query returns known doc in top-3
 
-- [ ] **P2-R3** `[RAG]` Implement `src/sparse.py` — `SparseRetriever`:
+- [x] **P2-R3** `[RAG]` Implement `src/sparse.py` — `SparseRetriever`:
   - Compute BM25 term weights for query tokens
   - Query `nexgen_bm25_terms` sparse index
   - Return `list[RankedChunk]`
