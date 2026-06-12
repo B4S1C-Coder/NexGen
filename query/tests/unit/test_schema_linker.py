@@ -267,6 +267,27 @@ class TestCacheStatus:
         assert status["index_count"] == 2
         assert status["field_count"] == 3
 
+    def test_fresh_refresh_reports_not_stale(self) -> None:
+        """After a manual refresh timestamp, is_stale must be False (P4-5).
+
+        Sets _last_refreshed to 'now' to simulate a just-completed
+        refresh, then confirms cache_status() reports is_stale=False
+        and a non-null last_refreshed ISO timestamp.
+        """
+        from datetime import datetime, timezone
+
+        linker = linker_with_cache(
+            {"payments-2026": [FieldMeta("service.name", "keyword")]}
+        )
+        # Simulate a refresh that just happened
+        linker._last_refreshed = datetime.now(timezone.utc)
+
+        status = linker.cache_status()
+
+        assert status["is_stale"] is False
+        assert status["last_refreshed"] is not None
+        assert status["index_count"] == 1    
+
 # ---------------------------------------------------------------------------
 # Tests for P3-Q1 — Qdrant semantic disambiguation
 # ---------------------------------------------------------------------------
