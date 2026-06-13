@@ -3,7 +3,12 @@
 Fetches Elasticsearch index mappings, caches them in memory, and
 resolves which indices and fields are relevant for an incoming query.
 
-Defined in query.md §3.1.
+P3-Q1: adds Qdrant-based semantic disambiguation. Index descriptions are
+embedded and upserted into the nexgen_schema_tables collection during
+refresh_cache(); link() queries Qdrant for the most relevant indices when
+hint-matching finds nothing.
+
+Defined in query.md §3.1 and TASKS.md P3-Q1.
 """
 
 from __future__ import annotations
@@ -15,9 +20,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
 from elasticsearch import AsyncElasticsearch
 from elasticsearch import ConnectionError as ESConnectionError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from qdrant_client import QdrantClient
+from qdrant_client.http import models as qdrant_models
 
 from nexgen_shared.errors import E001SchemaLinkingFailure, E003ElasticsearchTimeout
 
@@ -42,6 +50,13 @@ class SchemaLinkerSettings(BaseSettings):
     elasticsearch_password: str = "changeme"
     es_request_timeout: int = 20
     schema_cache_refresh_interval_seconds: int = 300
+
+    # --- P3-Q1: Qdrant semantic disambiguation ---
+    qdrant_url: str = "http://localhost:6333"
+    ollama_url: str = "http://localhost:11434"
+    embed_model: str = "nomic-embed-text"
+    schema_table_collection: str = "nexgen_schema_tables"
+    schema_link_top_k: int = 2
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +132,8 @@ class SchemaLinker:
         self._cache: dict[str, list[FieldMeta]] = {}
         self._last_refreshed: datetime | None = None
         self._refresh_task: asyncio.Task[None] | None = None
+        # P3-Q1: Qdrant client for semantic index disambiguation
+        self._qdrant: QdrantClient | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle methods
@@ -139,6 +156,11 @@ class SchemaLinker:
             ),
             request_timeout=self._settings.es_request_timeout,
         )
+        # P3-Q1: open Qdrant client used for semantic disambiguation
+        self._qdrant = QdrantClient(
+            url=self._settings.qdrant_url,
+            check_compatibility=False,
+        )
         await self.refresh_cache()
         self._refresh_task = asyncio.create_task(self._background_refresh())
         logger.info(
@@ -152,6 +174,9 @@ class SchemaLinker:
         """
         if self._refresh_task is not None:
             self._refresh_task.cancel()
+        # P3-Q1: close the Qdrant client
+        if self._qdrant is not None:
+            self._qdrant.close()
         if self._client is not None:
             await self._client.close()
         logger.info("SchemaLinker shut down cleanly.")
@@ -165,6 +190,9 @@ class SchemaLinker:
 
         Skips indices whose names start with '.' (ES internal indices
         like .kibana, .security-*).
+
+        P3-Q1: after rebuilding the cache, embeds each index description
+        and upserts it into the nexgen_schema_tables Qdrant collection.
 
         Raises:
             E003ElasticsearchTimeout: If the ES connection fails.
@@ -195,10 +223,63 @@ class SchemaLinker:
             new_cache[index_name] = self._extract_fields(properties)
 
         self._cache = new_cache
+        # P3-Q1: keep Qdrant schema embeddings in sync with the cache
+        self._upsert_schema_embeddings()
         self._last_refreshed = datetime.now(timezone.utc)
         logger.info(
             "Schema cache refreshed — %d indices loaded.", len(self._cache)
         )
+
+    def _upsert_schema_embeddings(self) -> None:
+        """Embed each cached index's description and upsert into Qdrant.
+
+        One point per index. The vector is the embedding of a short
+        description built from the index name plus its first 15 field
+        names. The payload carries the index_name so link() can map a
+        Qdrant hit back to a real index.
+
+        Failures are logged and swallowed so the service stays up when
+        Ollama or Qdrant is unavailable — link() then falls back to
+        hint-matching and the all-indices fallback.
+        """
+        if self._qdrant is None:
+            return
+
+        points: list[qdrant_models.PointStruct] = []
+        for idx, (index_name, fields) in enumerate(self._cache.items()):
+            field_names = ", ".join(f.name for f in fields[:15])
+            description = f"Index {index_name}. Fields: {field_names}"
+            try:
+                vector = _embed(description, self._settings)
+            except RuntimeError as exc:
+                logger.warning(
+                    "Schema embedding failed for %s: %s", index_name, exc
+                )
+                continue
+            points.append(
+                qdrant_models.PointStruct(
+                    id=idx,
+                    vector=vector,
+                    payload={
+                        "index_name": index_name,
+                        "description": description,
+                    },
+                )
+            )
+
+        if points:
+            try:
+                self._qdrant.upsert(
+                    collection_name=self._settings.schema_table_collection,
+                    points=points,
+                )
+                logger.info(
+                    "Upserted %d index embeddings to Qdrant.", len(points)
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Qdrant upsert of schema embeddings failed: %s", exc
+                )
 
     async def _background_refresh(self) -> None:
         """Periodically refresh the schema cache while the service runs.
@@ -286,16 +367,18 @@ class SchemaLinker:
         Steps:
         1. Raise E001 if the cache is empty (ES was never reachable).
         2. Match index_hints against cached index names using wildcards.
-        3. Fall back to ALL cached indices if no hints match.
-        4. Collect all FieldMeta from matched indices, deduplicating
+        3. P3-Q1: if no hints match, query Qdrant for the top-k most
+           semantically similar indices.
+        4. Fall back to ALL cached indices if neither hints nor semantic
+           search match.
+        5. Collect all FieldMeta from matched indices, deduplicating
            by field name.
-        5. Merge any known_fields from the request's schema_context
+        6. Merge any known_fields from the request's schema_context
            that are not already in the cache.
 
         Args:
-            natural_language: The user's question. Not used in this
-                phase — will be used in P3-Q1 for Qdrant-based semantic
-                disambiguation.
+            natural_language: The user's question. Used in P3-Q1 for
+                Qdrant-based semantic disambiguation when no hints match.
             index_hints: Patterns like ['payments-*', 'gateway-*']
                 supplied by the Master LLM in LogRetrievalRequest.
             schema_context_from_request: The schema_context dict from
@@ -319,10 +402,18 @@ class SchemaLinker:
         # --- Step 1: match hints against real index names ---------------
         matched_indices = self._match_indices(index_hints)
 
+        # --- Step 1b (P3-Q1): semantic disambiguation via Qdrant --------
         if not matched_indices:
-            # No hints matched anything — use every cached index
+            matched_indices = self._semantic_match_indices(natural_language)
+            if matched_indices:
+                logger.info(
+                    "Semantic match selected indices: %s", matched_indices
+                )
+
+        # --- Step 1c: last-resort fallback to all indices ---------------
+        if not matched_indices:
             logger.warning(
-                "No index hints matched. Falling back to all %d indices.",
+                "No hint or semantic match. Falling back to all %d indices.",
                 len(self._cache),
             )
             matched_indices = list(self._cache.keys())
@@ -372,6 +463,47 @@ class SchemaLinker:
                     break   # don't add the same index twice
         return matched
 
+    def _semantic_match_indices(self, natural_language: str) -> list[str]:
+        """Find top-k relevant indices via Qdrant embedding similarity.
+
+        Embeds the natural language query, searches the schema-tables
+        collection, and returns matching index names that exist in the
+        current cache. Returns an empty list on any failure so link()
+        can fall back to the all-indices behaviour.
+
+        Args:
+            natural_language: The user's question.
+
+        Returns:
+            Ordered list of index names, most similar first.
+        """
+        if self._qdrant is None:
+            return []
+
+        try:
+            vector = _embed(natural_language, self._settings)
+        except RuntimeError as exc:
+            logger.warning("Query embedding failed: %s", exc)
+            return []
+
+        try:
+            hits = self._qdrant.search(
+                collection_name=self._settings.schema_table_collection,
+                query_vector=vector,
+                limit=self._settings.schema_link_top_k,
+                with_payload=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Qdrant schema search failed: %s", exc)
+            return []
+
+        matched: list[str] = []
+        for hit in hits:
+            name = hit.payload.get("index_name")
+            if name and name in self._cache and name not in matched:
+                matched.append(name)
+        return matched
+
     # ------------------------------------------------------------------
     # Status reporting
     # ------------------------------------------------------------------
@@ -404,3 +536,36 @@ class SchemaLinker:
             "field_count": total_fields,
             "is_stale": is_stale,
         }
+
+
+# ---------------------------------------------------------------------------
+# Embedding helper (P3-Q1) — mirrors few_shot._embed
+# ---------------------------------------------------------------------------
+
+def _embed(text: str, settings: SchemaLinkerSettings) -> list[float]:
+    """Return a 768-dim embedding for text using Ollama nomic-embed-text.
+
+    Args:
+        text: The string to embed.
+        settings: SchemaLinkerSettings with ollama_url and embed_model.
+
+    Returns:
+        List of 768 floats.
+
+    Raises:
+        RuntimeError: If Ollama is unreachable or returns an error.
+    """
+    try:
+        response = httpx.post(
+            f"{settings.ollama_url}/api/embeddings",
+            json={"model": settings.embed_model, "prompt": text},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return response.json()["embedding"]
+    except httpx.ConnectError as exc:
+        raise RuntimeError(
+            f"Cannot reach Ollama at {settings.ollama_url}. Is it running?"
+        ) from exc
+    except Exception as exc:
+        raise RuntimeError(f"Embedding request failed: {exc}") from exc

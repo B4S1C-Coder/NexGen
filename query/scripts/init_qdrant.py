@@ -25,6 +25,8 @@ QDRANT_URL = "http://localhost:6333"
 
 # Collection name as defined in query.md §5 and AGENTS.md
 FEW_SHOT_COLLECTION = "nexgen_few_shot"
+# Collection for index/table descriptions — used by SchemaLinker (P3-Q1)
+SCHEMA_TABLE_COLLECTION = "nexgen_schema_tables"
 
 # Embedding dimension for nomic-embed-text via Ollama
 # nomic-embed-text produces 768-dimensional vectors
@@ -66,6 +68,39 @@ def create_few_shot_collection(client: QdrantClient) -> bool:
     return True
 
 
+def create_schema_table_collection(client: QdrantClient) -> bool:
+    """Create the nexgen_schema_tables collection in Qdrant.
+
+    Stores one vector per Elasticsearch index, embedded from that
+    index's description. Used by SchemaLinker.link() for semantic
+    disambiguation (P3-Q1).
+
+    Args:
+        client: An initialised QdrantClient instance.
+
+    Returns:
+        True if created, False if it already existed.
+    """
+    existing = [c.name for c in client.get_collections().collections]
+
+    if SCHEMA_TABLE_COLLECTION in existing:
+        print(f"Collection '{SCHEMA_TABLE_COLLECTION}' already exists — skipping.")
+        return False
+
+    client.create_collection(
+        collection_name=SCHEMA_TABLE_COLLECTION,
+        vectors_config=qdrant_models.VectorParams(
+            size=EMBEDDING_DIMENSION,
+            distance=DISTANCE_METRIC,
+        ),
+    )
+    print(
+        f"Created collection '{SCHEMA_TABLE_COLLECTION}' "
+        f"({EMBEDDING_DIMENSION}-dim, cosine distance)."
+    )
+    return True
+
+
 def verify_collection(client: QdrantClient) -> None:
     """Print collection info to confirm it exists and is configured correctly.
 
@@ -99,6 +134,7 @@ def main() -> None:
 
     print("Connected successfully.")
     create_few_shot_collection(client)
+    create_schema_table_collection(client)
     verify_collection(client)
     print("Initialisation complete.")
 
