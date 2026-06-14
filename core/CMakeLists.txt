@@ -80,6 +80,7 @@ target_include_directories(
 
 set(NEXGEN_CORE_SOURCES
   ${CMAKE_SOURCE_DIR}/src/harness_llm.cc
+  ${CMAKE_SOURCE_DIR}/src/context_builder.cc
 )
 
 add_library(
@@ -122,6 +123,17 @@ add_executable(
 
 target_link_libraries(
   test_harness_llm
+  PRIVATE
+  nexgen_core
+)
+
+add_executable(
+  test_context_builder
+  src/test_context_builder.cc
+)
+
+target_link_libraries(
+  test_context_builder
   PRIVATE
   nexgen_core
 )

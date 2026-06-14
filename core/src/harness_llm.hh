@@ -33,6 +33,8 @@ private:
   llama_sampler* sampler   = nullptr;
   const llama_vocab* vocab = nullptr;
 
+  llama_token last_token_ = -1;
+
   HarnessConfig cfg_;
 
   int static_prefix_end = 0; // token pos where seq_id=0 ends
@@ -71,14 +73,13 @@ public:
   // Per phase ops
   void reset_to_prefix();
   bool ingest_dynamic(const std::string& text);
-  // std::string generate(
-  //   int max_tokens,
-  //   float temp
-  // );
 
   std::string generate(int max_tokens);
 
   // State Persistance
+  // NOTE: after restore_state(), always call ingest_dynamic() before generate().
+  // restore_state() does not prime GPU logits — ingest_dynamic() does this
+  // via logits_last=true on its final token.
   std::vector<uint8_t> save_state() const;
   bool restore_state(const std::vector<uint8_t>& blob);
 

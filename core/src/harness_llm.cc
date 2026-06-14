@@ -168,6 +168,8 @@ std::string HarnessLLM::generate(int max_tokens) {
       LOG_ERROR("llama_decode failed in generate at token {}: ret={}", i, ret);
       break;
     }
+
+    last_token_ = tok;
   }
 
   dynamic_end = cur_pos;
@@ -193,6 +195,26 @@ bool HarnessLLM::restore_state(const std::vector<uint8_t>& blob) {
     return false;
   }
   llama_sampler_reset(sampler);
+
+  // re-prime logits -- after state restore the GPU has no live logits, decode the last token
+  // again with logits=true so generate() can sample
+  // if (last_token_ >= 0 && dynamic_end > 0) {
+  //   llama_batch batch = llama_batch_init(1, 0, 1);
+  //   batch.token[0] = last_token_;
+  //   batch.pos[0] = dynamic_end - 1;
+  //   batch.n_seq_id[0] = 1;
+  //   batch.seq_id[0][0] = 1;
+  //   batch.logits[0] = true;
+  //   batch.n_tokens = 1;
+  //   int ret = llama_decode(ctx, batch);
+  //   llama_batch_free(batch);
+
+  //   if (ret != 0) {
+  //     LOG_ERROR("restore_state: logit prime decode failed: ret={}", ret);
+  //     return false;
+  //   }
+  // }
+
   return true;
 }
 
