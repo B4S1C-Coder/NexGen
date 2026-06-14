@@ -35,4 +35,12 @@ class Settings(BaseSettings):
         default="nexgen_bm25_terms",
         validation_alias="SPARSE_COLLECTION",
     )
+    wrrf_k: int = Field(
+        default=60,
+        validation_alias="WRRF_K",
+    )
+    cross_encoder_model: str = Field(
+        default="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        validation_alias="CROSS_ENCODER_MODEL",
+    )
     docs_path: str = Field(default="data/docs")
