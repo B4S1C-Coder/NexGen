@@ -196,12 +196,12 @@ gantt
   - Return `list[RankedChunk]`
   - Unit test: query containing exact error code surfaces doc with that error code in top-1
 
-- [ ] **P2-R4** `[RAG]` Implement `src/fusion.py` — `WRRFFusion`:
+- [x] **P2-R4** `[RAG]` Implement `src/fusion.py` — `WRRFFusion`:
   - `classify_query(query: str) -> tuple[float, float]` — returns `(w_dense, w_sparse)` using rule-based scorer
   - `fuse(dense: list[RankedChunk], sparse: list[RankedChunk], w_dense, w_sparse) -> list[RankedChunk]`
   - Unit tests: natural-language query → `w_dense=0.7`; error-code-heavy query → `w_sparse=0.7`; fused list is deduplicated and sorted by WRRF score
 
-- [ ] **P2-R5** `[RAG]` Implement `src/reranker.py` — `CrossEncoderReranker`:
+- [x] **P2-R5** `[RAG]` Implement `src/reranker.py` — `CrossEncoderReranker`:
   - Load `cross-encoder/ms-marco-MiniLM-L-6-v2` via `sentence-transformers`
   - `rerank(query: str, chunks: list[RankedChunk]) -> list[RankedChunk]` — replaces `score` with cross-encoder score; sorted descending
   - Unit test: a chunk containing the exact query terms ranked higher than an off-topic chunk
