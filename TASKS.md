@@ -206,15 +206,15 @@ gantt
   - `rerank(query: str, chunks: list[RankedChunk]) -> list[RankedChunk]` — replaces `score` with cross-encoder score; sorted descending
   - Unit test: a chunk containing the exact query terms ranked higher than an off-topic chunk
 
-- [ ] **P2-R6** `[RAG]` Implement `src/authority.py` — `AuthorityScorer`:
+- [x] **P2-R6** `[RAG]` Implement `src/authority.py` — `AuthorityScorer`:
   - `score(chunks: list[RankedChunk]) -> list[RankedChunk]` applies formula from `rag.md §4.6`
   - Unit tests: Tier-A runbook scores higher than equivalent Tier-B Slack chunk; deprecated chunk has lowest score regardless of other boosts
 
-- [ ] **P2-R7** `[RAG]` Wire `POST /knowledge` endpoint (no conflict detection yet):
-  - Calls `TemporalFilter → DenseRetriever + SparseRetriever (parallel) → WRRFFusion → CrossEncoderReranker → AuthorityScorer → top-max_chunks`
+- [x] **P2-R7** `[RAG]` Wire `POST /knowledge` endpoint (no conflict detection yet):
+  - Calls `TemporalFilter -> DenseRetriever + SparseRetriever (parallel) -> WRRFFusion -> CrossEncoderReranker -> AuthorityScorer -> top-max_chunks`
   - Set `conflict_detected=False` temporarily
   - Assemble `KnowledgeResult` with raw chunks (no compression yet)
-  - Integration test: POST with semantic query returns `KnowledgeResult` with ≥ 1 chunk from seeded docs
+  - Integration test: POST with semantic query returns `KnowledgeResult` with >= 1 chunk from seeded docs
 
 ---
 
