@@ -81,6 +81,7 @@ target_include_directories(
 set(NEXGEN_CORE_SOURCES
   ${CMAKE_SOURCE_DIR}/src/harness_llm.cc
   ${CMAKE_SOURCE_DIR}/src/context_builder.cc
+  ${CMAKE_SOURCE_DIR}/src/memory_store.cc
 )
 
 add_library(
@@ -93,6 +94,7 @@ target_link_libraries(
   nexgen_core
   PUBLIC
   llama_bundle
+  sqlite3
 )
 
 target_include_directories(
@@ -134,6 +136,28 @@ add_executable(
 
 target_link_libraries(
   test_context_builder
+  PRIVATE
+  nexgen_core
+)
+
+add_executable(
+  test_sqlite
+  src/test_sqlite.cc
+)
+
+target_link_libraries(
+  test_sqlite
+  PRIVATE
+  nexgen_core
+)
+
+add_executable(
+  test_memory_store
+  src/test_memory_store.cc
+)
+
+target_link_libraries(
+  test_memory_store
   PRIVATE
   nexgen_core
 )
