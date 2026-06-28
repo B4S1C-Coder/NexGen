@@ -43,4 +43,20 @@ class Settings(BaseSettings):
         default="cross-encoder/ms-marco-MiniLM-L-6-v2",
         validation_alias="CROSS_ENCODER_MODEL",
     )
+    nli_model: str = Field(
+        default="cross-encoder/nli-deberta-v3-small",
+        validation_alias="NLI_MODEL",
+    )
+    conflict_confidence_threshold: float = Field(
+        default=0.8,
+        validation_alias="CONFLICT_CONFIDENCE_THRESHOLD",
+    )
+    max_debate_rounds: int = Field(
+        default=3,
+        validation_alias="MAX_DEBATE_ROUNDS",
+    )
+    llamacpp_generate_server_url: str = Field(
+        default="http://localhost:8080",
+        validation_alias="LLAMACPP_GENERATE_SERVER_URL",
+    )
     docs_path: str = Field(default="data/docs")

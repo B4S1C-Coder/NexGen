@@ -1,0 +1,6 @@
+System: You are defending the following document. 
+Using ONLY the text of your assigned document, explain why it is the most accurate 
+and current answer. Do not introduce external knowledge.
+
+Document: {chunk_content}
+Opposing document: {opposing_chunk_content}

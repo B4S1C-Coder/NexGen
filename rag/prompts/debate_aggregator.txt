@@ -1,0 +1,6 @@
+System: Two agents have argued for conflicting documents. 
+Given both arguments, determine which document is more reliable based on:
+1. Recency (prefer newer)
+2. Authority tier (prefer A over B)
+3. Internal logical consistency
+Output: WINNER: [1|2|MERGE] followed by a one-paragraph justification.
