@@ -1,40 +1,40 @@
-{"id": "ev-001", "category": "time_range", "nl": "Show all logs from the last 15 minutes", "kql": "@timestamp >= now-15m"}
-{"id": "ev-002", "category": "time_range", "nl": "Find logs from the last 6 hours", "kql": "@timestamp >= now-6h"}
-{"id": "ev-003", "category": "time_range", "nl": "Show logs from the past 24 hours", "kql": "@timestamp >= now-24h"}
-{"id": "ev-004", "category": "time_range", "nl": "Show logs since the start of today", "kql": "@timestamp >= now/d"}
-{"id": "ev-005", "category": "time_range", "nl": "Find logs from the last 7 days", "kql": "@timestamp >= now-7d"}
-{"id": "ev-006", "category": "time_range", "nl": "Show logs from the last 30 minutes", "kql": "@timestamp >= now-30m"}
-{"id": "ev-007", "category": "time_range", "nl": "Find logs from the past 2 hours", "kql": "@timestamp >= now-2h"}
-{"id": "ev-008", "category": "service_filter", "nl": "Show all logs from the payments service", "kql": "service.name: \"payments\""}
-{"id": "ev-009", "category": "service_filter", "nl": "Find logs from the auth service", "kql": "service.name: \"auth\""}
-{"id": "ev-010", "category": "service_filter", "nl": "Show logs from the gateway service", "kql": "service.name: \"gateway\""}
-{"id": "ev-011", "category": "service_filter", "nl": "Find logs from the orders service", "kql": "service.name: \"orders\""}
-{"id": "ev-012", "category": "service_filter", "nl": "Show logs from the inventory service", "kql": "service.name: \"inventory\""}
-{"id": "ev-013", "category": "service_filter", "nl": "Find logs from the notifications service", "kql": "service.name: \"notifications\""}
-{"id": "ev-014", "category": "level_filter", "nl": "Show all ERROR logs", "kql": "log.level: \"ERROR\""}
-{"id": "ev-015", "category": "level_filter", "nl": "Find all WARN logs", "kql": "log.level: \"WARN\""}
-{"id": "ev-016", "category": "level_filter", "nl": "Show all INFO logs", "kql": "log.level: \"INFO\""}
-{"id": "ev-017", "category": "level_filter", "nl": "Find all DEBUG logs", "kql": "log.level: \"DEBUG\""}
-{"id": "ev-018", "category": "level_filter", "nl": "Show WARN and ERROR logs", "kql": "log.level: (\"ERROR\" OR \"WARN\")"}
-{"id": "ev-019", "category": "level_filter", "nl": "Find logs that are not INFO level", "kql": "NOT log.level: \"INFO\""}
-{"id": "ev-020", "category": "nested_field", "nl": "Find orders containing an item named laptop", "kql": "items: { product_name: \"laptop\" }"}
-{"id": "ev-021", "category": "nested_field", "nl": "Find orders with an item from the east warehouse and quantity over 2", "kql": "items: { warehouse: \"east\" AND quantity > 2 }"}
-{"id": "ev-022", "category": "nested_field", "nl": "Find orders containing a keyboard with at least 5 units", "kql": "items: { product_name: \"keyboard\" AND quantity >= 5 }"}
-{"id": "ev-023", "category": "nested_field", "nl": "Find orders with an item from the west warehouse", "kql": "items: { warehouse: \"west\" }"}
-{"id": "ev-024", "category": "nested_field", "nl": "Find orders containing a monitor with fewer than 3 units", "kql": "items: { product_name: \"monitor\" AND quantity < 3 }"}
-{"id": "ev-025", "category": "aggregation_count", "nl": "Show ERROR logs from the payments service", "kql": "service.name: \"payments\" AND log.level: \"ERROR\""}
-{"id": "ev-026", "category": "aggregation_count", "nl": "Find HTTP 500 responses from the gateway service", "kql": "service.name: \"gateway\" AND http.status_code: 500"}
-{"id": "ev-027", "category": "aggregation_count", "nl": "Show requests that took longer than 2000 milliseconds", "kql": "http.response_time_ms > 2000"}
-{"id": "ev-028", "category": "aggregation_count", "nl": "Find all logs in the production environment", "kql": "environment: \"production\""}
-{"id": "ev-029", "category": "aggregation_count", "nl": "Show ERROR logs from the last hour", "kql": "log.level: \"ERROR\" AND @timestamp >= now-1h"}
-{"id": "ev-030", "category": "aggregation_count", "nl": "Find logs with error code E003", "kql": "error.code: \"E003\""}
-{"id": "ev-031", "category": "multi_condition", "nl": "Show ERROR logs from the auth service in the last hour", "kql": "service.name: \"auth\" AND log.level: \"ERROR\" AND @timestamp >= now-1h"}
-{"id": "ev-032", "category": "multi_condition", "nl": "Find HTTP 500 errors from the payments service in the last 30 minutes", "kql": "service.name: \"payments\" AND http.status_code: 500 AND @timestamp >= now-30m"}
-{"id": "ev-033", "category": "multi_condition", "nl": "Show WARN or ERROR logs from the orders service", "kql": "service.name: \"orders\" AND log.level: (\"ERROR\" OR \"WARN\")"}
-{"id": "ev-034", "category": "multi_condition", "nl": "Find ERROR logs from either the auth or payments service", "kql": "log.level: \"ERROR\" AND service.name: (\"auth\" OR \"payments\")"}
-{"id": "ev-035", "category": "multi_condition", "nl": "Show production logs with status code 500 or 503", "kql": "environment: \"production\" AND http.status_code: (500 OR 503)"}
-{"id": "ev-036", "category": "multi_condition", "nl": "Find ERROR logs from the gateway service not in staging", "kql": "service.name: \"gateway\" AND log.level: \"ERROR\" AND NOT environment: \"staging\""}
-{"id": "ev-037", "category": "multi_condition", "nl": "Show inventory service logs with response time over 1000ms in the last 24 hours", "kql": "service.name: \"inventory\" AND http.response_time_ms > 1000 AND @timestamp >= now-24h"}
-{"id": "ev-038", "category": "multi_condition", "nl": "Find all logs with trace ID abc-123-xyz", "kql": "trace.id: \"abc-123-xyz\""}
-{"id": "ev-039", "category": "multi_condition", "nl": "Show ERROR logs with error code E003 from the payments service", "kql": "service.name: \"payments\" AND log.level: \"ERROR\" AND error.code: \"E003\""}
-{"id": "ev-040", "category": "multi_condition", "nl": "Find production logs from auth or gateway with WARN or ERROR level", "kql": "environment: \"production\" AND service.name: (\"auth\" OR \"gateway\") AND log.level: (\"ERROR\" OR \"WARN\")"}
+{"id": "eval-001", "category": "time_range", "nl": "Show all logs from the last 15 minutes", "kql": "@timestamp >= now-15m"}
+{"id": "eval-002", "category": "time_range", "nl": "Show all logs from the last 6 hours", "kql": "@timestamp >= now-6h"}
+{"id": "eval-003", "category": "time_range", "nl": "Find logs from the last 24 hours", "kql": "@timestamp >= now-24h"}
+{"id": "eval-004", "category": "time_range", "nl": "Show logs recorded since the start of today", "kql": "@timestamp >= now/d"}
+{"id": "eval-005", "category": "time_range", "nl": "Show logs from the auth service in the last 2 hours", "kql": "service.name: \"auth\" AND @timestamp >= now-2h"}
+{"id": "eval-006", "category": "time_range", "nl": "Find ERROR logs from the last 7 days", "kql": "log.level: \"ERROR\" AND @timestamp >= now-7d"}
+{"id": "eval-007", "category": "time_range", "nl": "Show logs older than 30 days", "kql": "@timestamp <= now-30d"}
+{"id": "eval-008", "category": "service_filter", "nl": "Show all logs from the payments service", "kql": "service.name: \"payments\""}
+{"id": "eval-009", "category": "service_filter", "nl": "Find logs from the orders service", "kql": "service.name: \"orders\""}
+{"id": "eval-010", "category": "service_filter", "nl": "Show logs from the gateway service", "kql": "service.name: \"gateway\""}
+{"id": "eval-011", "category": "service_filter", "nl": "Find logs from the inventory service", "kql": "service.name: \"inventory\""}
+{"id": "eval-012", "category": "service_filter", "nl": "Show logs from the notifications service", "kql": "service.name: \"notifications\""}
+{"id": "eval-013", "category": "service_filter", "nl": "Find logs where the service name starts with pay", "kql": "service.name: pay*"}
+{"id": "eval-014", "category": "level_filter", "nl": "Show all ERROR logs", "kql": "log.level: \"ERROR\""}
+{"id": "eval-015", "category": "level_filter", "nl": "Find all WARN logs", "kql": "log.level: \"WARN\""}
+{"id": "eval-016", "category": "level_filter", "nl": "Show INFO level logs", "kql": "log.level: \"INFO\""}
+{"id": "eval-017", "category": "level_filter", "nl": "Find all WARN and ERROR logs", "kql": "log.level: (\"ERROR\" OR \"WARN\")"}
+{"id": "eval-018", "category": "level_filter", "nl": "Show DEBUG logs", "kql": "log.level: \"DEBUG\""}
+{"id": "eval-019", "category": "level_filter", "nl": "Find logs that are not at DEBUG level", "kql": "NOT log.level: \"DEBUG\""}
+{"id": "eval-020", "category": "nested_field", "nl": "Find orders containing an item named laptop", "kql": "items: { product_name: \"laptop\" }"}
+{"id": "eval-021", "category": "nested_field", "nl": "Find orders with an item from the east warehouse with quantity greater than 2", "kql": "items: { warehouse: \"east\" AND quantity > 2 }"}
+{"id": "eval-022", "category": "nested_field", "nl": "Find orders containing a keyboard with quantity greater than or equal to 5", "kql": "items: { product_name: \"keyboard\" AND quantity >= 5 }"}
+{"id": "eval-023", "category": "nested_field", "nl": "Find orders with an item from the west warehouse", "kql": "items: { warehouse: \"west\" }"}
+{"id": "eval-024", "category": "nested_field", "nl": "Find orders containing a monitor with quantity less than 3", "kql": "items: { product_name: \"monitor\" AND quantity < 3 }"}
+{"id": "eval-025", "category": "aggregation_count", "nl": "How many ERROR logs are there from the payments service?", "kql": "service.name: \"payments\" AND log.level: \"ERROR\""}
+{"id": "eval-026", "category": "aggregation_count", "nl": "Count the number of HTTP 500 responses from the gateway service", "kql": "service.name: \"gateway\" AND http.status_code: 500"}
+{"id": "eval-027", "category": "aggregation_count", "nl": "How many requests took longer than 2000 milliseconds?", "kql": "http.response_time_ms > 2000"}
+{"id": "eval-028", "category": "aggregation_count", "nl": "Count all logs in the production environment", "kql": "environment: \"production\""}
+{"id": "eval-029", "category": "aggregation_count", "nl": "How many ERROR logs occurred in the last hour?", "kql": "log.level: \"ERROR\" AND @timestamp >= now-1h"}
+{"id": "eval-030", "category": "aggregation_count", "nl": "Count the number of logs with error code E003", "kql": "error.code: \"E003\""}
+{"id": "eval-031", "category": "multi_condition", "nl": "Show ERROR logs from the auth service in the last hour", "kql": "service.name: \"auth\" AND log.level: \"ERROR\" AND @timestamp >= now-1h"}
+{"id": "eval-032", "category": "multi_condition", "nl": "Find HTTP 500 errors from the payments service in the last 30 minutes", "kql": "service.name: \"payments\" AND http.status_code: 500 AND @timestamp >= now-30m"}
+{"id": "eval-033", "category": "multi_condition", "nl": "Show WARN or ERROR logs from the orders service", "kql": "service.name: \"orders\" AND log.level: (\"ERROR\" OR \"WARN\")"}
+{"id": "eval-034", "category": "multi_condition", "nl": "Find logs from either the auth or payments service with ERROR level", "kql": "log.level: \"ERROR\" AND service.name: (\"auth\" OR \"payments\")"}
+{"id": "eval-035", "category": "multi_condition", "nl": "Show production environment logs with status code 500 or 503", "kql": "environment: \"production\" AND http.status_code: (500 OR 503)"}
+{"id": "eval-036", "category": "multi_condition", "nl": "Find ERROR logs from the gateway service that are not in the staging environment", "kql": "service.name: \"gateway\" AND log.level: \"ERROR\" AND NOT environment: \"staging\""}
+{"id": "eval-037", "category": "multi_condition", "nl": "Show logs from the inventory service with response time over 1000ms in the last 24 hours", "kql": "service.name: \"inventory\" AND http.response_time_ms > 1000 AND @timestamp >= now-24h"}
+{"id": "eval-038", "category": "multi_condition", "nl": "Find all logs with trace ID abc-123-xyz", "kql": "trace.id: \"abc-123-xyz\""}
+{"id": "eval-039", "category": "multi_condition", "nl": "Show ERROR logs with error code E003 from the payments service", "kql": "service.name: \"payments\" AND log.level: \"ERROR\" AND error.code: \"E003\""}
+{"id": "eval-040", "category": "multi_condition", "nl": "Find production logs from auth or gateway services with WARN or ERROR level", "kql": "environment: \"production\" AND service.name: (\"auth\" OR \"gateway\") AND log.level: (\"ERROR\" OR \"WARN\")"}
