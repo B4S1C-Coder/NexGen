@@ -51,10 +51,16 @@ class TestLoadFallbackExamples:
     """Tests for the fallback JSONL loader."""
 
     def test_loads_real_fallback_file(self) -> None:
-        """Must load the actual fallback_examples.jsonl file."""
+        """Must load the actual fallback_examples.jsonl file.
+
+        P5-5: 10 original pairs (fe-001..fe-010) plus 20 domain-specific
+        pairs (fe-011..fe-030) covering nested fields, multi-service AND
+        queries, count aggregations, error-code range filters, and
+        full-text message matches.
+        """
         path = Path(__file__).parent.parent.parent / "data" / "fallback_examples.jsonl"
         examples = _load_fallback_examples(path)
-        assert len(examples) == 10
+        assert len(examples) == 30
 
     def test_each_example_has_nl_and_kql(self) -> None:
         """Every loaded example must have non-empty nl and kql fields."""
