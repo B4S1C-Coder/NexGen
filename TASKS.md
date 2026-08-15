@@ -235,7 +235,7 @@ gantt
   - Max 3 rounds; raises `NexGenError("E007")` on max rounds exhausted
   - Unit test (mocked LLM): aggregator output contains `WINNER:` token; merged summary â‰¤ 200 tokens
 
-- [ ] **P3-R3** `[RAG]` Implement `src/compactor.py` â€” `LLMLingua2Compactor`:
+- [x] **P3-R3** `[RAG]` Implement `src/compactor.py` â€” `LLMLingua2Compactor`:
   - Load LLMLingua-2 BERT model
   - `compress(chunks: list[str], budget_tokens: int) -> str` â€” binary token classification; iterative ratio adjustment
   - Enforce `<TAG:value>` patterns as always-preserve via pre-pass

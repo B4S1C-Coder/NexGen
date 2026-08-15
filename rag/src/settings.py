@@ -51,4 +51,20 @@ class Settings(BaseSettings):
         default=0.8,
         validation_alias="CONFLICT_CONFIDENCE_THRESHOLD",
     )
+    llmlingua2_model: str = Field(
+        default="microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
+        validation_alias="LLMLINGUA2_MODEL",
+    )
+    default_compression_budget_tokens: int = Field(
+        default=2000,
+        validation_alias="DEFAULT_COMPRESSION_BUDGET_TOKENS",
+    )
+    ollama_base_url: str = Field(
+        default="http://localhost:11434",
+        validation_alias="OLLAMA_BASE_URL",
+    )
+    max_debate_rounds: int = Field(
+        default=3,
+        validation_alias="MAX_DEBATE_ROUNDS",
+    )
     docs_path: str = Field(default="data/docs")
