@@ -229,7 +229,7 @@ gantt
   - Pairwise NLI over top-k chunks; collect `ConflictPair` list for CONTRADICTION above threshold
   - Unit test: two fixture chunks with known contradiction → 1 ConflictPair detected
 
-- [ ] **P3-R2** `[RAG]` Implement `src/debate.py` — `MultiAgentDebate`:
+- [x] **P3-R2** `[RAG]` Implement `src/debate.py` — `MultiAgentDebate`:
   - Two LLM agents (evidence-constrained prompts from `prompts/debate_agent.txt`)
   - Aggregator agent (`prompts/debate_aggregator.txt`) decides WINNER or MERGE
   - Max 3 rounds; raises `NexGenError("E007")` on max rounds exhausted

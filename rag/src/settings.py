@@ -51,4 +51,12 @@ class Settings(BaseSettings):
         default=0.8,
         validation_alias="CONFLICT_CONFIDENCE_THRESHOLD",
     )
+    ollama_base_url: str = Field(
+        default="http://localhost:11434",
+        validation_alias="OLLAMA_BASE_URL",
+    )
+    max_debate_rounds: int = Field(
+        default=3,
+        validation_alias="MAX_DEBATE_ROUNDS",
+    )
     docs_path: str = Field(default="data/docs")
