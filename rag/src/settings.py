@@ -43,4 +43,12 @@ class Settings(BaseSettings):
         default="cross-encoder/ms-marco-MiniLM-L-6-v2",
         validation_alias="CROSS_ENCODER_MODEL",
     )
+    nli_model: str = Field(
+        default="cross-encoder/nli-deberta-v3-small",
+        validation_alias="NLI_MODEL",
+    )
+    conflict_confidence_threshold: float = Field(
+        default=0.8,
+        validation_alias="CONFLICT_CONFIDENCE_THRESHOLD",
+    )
     docs_path: str = Field(default="data/docs")
