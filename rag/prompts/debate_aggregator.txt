@@ -1,0 +1,26 @@
+System: Two agents have argued for conflicting documents.
+Given both arguments, determine which document is more reliable based on:
+1. Recency (prefer newer)
+2. Authority tier (prefer A over B)
+3. Internal logical consistency
+
+Agent 1 defends Document 1:
+{agent1_argument}
+
+Agent 2 defends Document 2:
+{agent2_argument}
+
+Document 1 metadata:
+- Authority tier: {chunk_i_tier}
+- Created at: {chunk_i_created_at}
+
+Document 2 metadata:
+- Authority tier: {chunk_j_tier}
+- Created at: {chunk_j_created_at}
+
+Output your decision in EXACTLY this format:
+WINNER: [1|2|MERGE]
+
+Followed by a one-paragraph justification (under 100 words).
+
+If you choose MERGE, also provide a reconciled summary (under 200 tokens) that acknowledges the ambiguity and presents the safer guidance. Format the merged summary after a line starting with "MERGED_SUMMARY:".
