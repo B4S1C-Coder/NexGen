@@ -60,3 +60,6 @@ class Settings(BaseSettings):
         validation_alias="MAX_DEBATE_ROUNDS",
     )
     docs_path: str = Field(default="data/docs")
+    jira_base_url: str | None = Field(default=None, validation_alias="JIRA_BASE_URL")
+    jira_api_token: str | None = Field(default=None, validation_alias="JIRA_API_TOKEN")
+    slack_bot_token: str | None = Field(default=None, validation_alias="SLACK_BOT_TOKEN")
