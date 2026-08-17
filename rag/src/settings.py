@@ -67,4 +67,12 @@ class Settings(BaseSettings):
         default=3,
         validation_alias="MAX_DEBATE_ROUNDS",
     )
+    llmlingua2_model: str = Field(
+        default="microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
+        validation_alias="LLMLINGUA2_MODEL",
+    )
+    default_compression_budget_tokens: int = Field(
+        default=2000,
+        validation_alias="DEFAULT_COMPRESSION_BUDGET_TOKENS",
+    )
     docs_path: str = Field(default="data/docs")

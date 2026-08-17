@@ -18,7 +18,14 @@ class _FakeEmbedder:
         return [deterministic_test_vector(text) for text in texts]
 
 
-def test_ingest_indexes_fixture_docs_into_dense_collection(tmp_path: Path):
+from unittest.mock import patch
+
+@patch("src.main.LLMLingua2Compactor")
+@patch("src.main.ConflictDetector")
+@patch("src.main.CrossEncoderReranker")
+@patch("src.main.SparseRetriever")
+@patch("src.main.DenseRetriever")
+def test_ingest_indexes_fixture_docs_into_dense_collection(mock_dense, mock_sparse, mock_reranker, mock_conflict, mock_compactor, tmp_path: Path):
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
 
