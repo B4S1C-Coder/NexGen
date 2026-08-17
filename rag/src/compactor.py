@@ -5,12 +5,6 @@ token classifier (LLMLingua-2 BERT). Technical ID tags (``<TAG:value>``)
 are unconditionally preserved via a pre-pass that marks them as
 non-discardable. When the model is unavailable a cosine-similarity based
 extractive fallback is used instead.
-"""LLMLingua-2 Compactor for context compression (rag.md §5.3).
-
-Compresses retrieved knowledge chunks into a token-budgeted prompt, preserving
-essential information. Implements a fallback mode (extractive sentence selection)
-when the LLMLingua-2 model is unavailable, to allow tests to run without
-downloading large weights.
 """
 
 from __future__ import annotations
@@ -121,64 +115,6 @@ class LLMLingua2Compactor:
         Returns:
             A single compressed string that fits within the budget and
             preserves all ``<TAG:value>`` technical identifiers.
-import re
-from typing import Any
-
-# Optional import to allow fallback mode without model download in tests
-try:
-    from llmlingua import PromptCompressor
-    HAS_LLMLINGUA = True
-except ImportError:
-    HAS_LLMLINGUA = False
-
-
-from .settings import Settings
-
-logger = logging.getLogger(__name__)
-
-
-class LLMLingua2Compactor:
-    """Compresses a list of chunks into a budgeted text string.
-
-    Uses microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank by
-    default. Extracts technical tags (`<TAG:value>`) as always-preserve targets
-    during compression.
-
-    If LLMLingua is missing or fails to load, falls back to extractive compression.
-
-    Parameters:
-        settings: RAG service settings providing model name and budget.
-    """
-
-    def __init__(self, settings: Settings) -> None:
-        self._model_name = settings.llmlingua2_model
-        self._budget = settings.default_compression_budget_tokens
-        self._compressor: Any = None
-        self._tag_pattern = re.compile(r"<([A-Z_]+):([^>]+)>")
-
-        if HAS_LLMLINGUA:
-            try:
-                # LLMLingua-2 uses model_name for the underlying model
-                # and use_llmlingua2=True to activate the newer algorithm
-                self._compressor = PromptCompressor(
-                    model_name=self._model_name,
-                    use_llmlingua2=True,
-                )
-            except Exception as exc:
-                logger.warning(
-                    f"Failed to load LLMLingua-2 model ({exc}). "
-                    "Falling back to extractive mode."
-                )
-
-    def compress(self, chunks: list[str], budget_tokens: int | None = None) -> str:
-        """Compress chunk content into a budgeted string.
-
-        Parameters:
-            chunks: A list of raw chunk texts to compress.
-            budget_tokens: Optional token budget (overrides default).
-
-        Returns:
-            The compressed text string.
         """
         if not chunks:
             return ""
