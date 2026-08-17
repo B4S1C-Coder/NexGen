@@ -338,12 +338,12 @@ gantt
   - `test_docs_only.py`: qualitative query â†’ Master calls only RAG; NL-to-KQL not called
   - `test_schema_error.py`: query with non-existent index â†’ `E001` propagated to `RCAReport`
 
-- [ ] **P4-3** `[RAG]` Implement remaining connectors:
+- [x] **P4-3** `[RAG]` Implement remaining connectors:
   - `src/connectors/jira.py` â€” REST API; maps `resolution` field to `resolution_status`; `is_accepted_answer = True` when `resolution == "Done"` and comment is flagged
   - `src/connectors/slack.py` â€” Conversations API; triggers dialog disentanglement; fetches thread replies
   - Unit tests for each: mock HTTP â†’ returns expected `RawDocument` list
 
-- [ ] **P4-4** `[RAG]` Implement Slack dialog disentanglement (`models/disentangle_model.pt`):
+- [x] **P4-4** `[RAG]` Implement Slack dialog disentanglement (`models/disentangle_model.pt`):
   - Train or download a lightweight classifier that separates `problem_description` vs `resolution` utterances from a Slack thread transcript
   - `disentangle(raw_text: str) -> tuple[str, str]` returns `(problem, resolution)`
   - Unit test: known Slack thread fixture â†’ resolution chunk contains the fix, not the speculation

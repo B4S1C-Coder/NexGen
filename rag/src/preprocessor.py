@@ -102,7 +102,8 @@ class Preprocessor:
             return []
 
         if doc.source_type == "slack":
-            text = self.disentangle(text)
+            problem, resolution = self.disentangle(text)
+            text = resolution
 
         tagged_text = self.tag_technical_ids(text)
 
@@ -199,10 +200,35 @@ class Preprocessor:
             recency_score=1.0,
         )
 
-    def disentangle(self, raw_text: str) -> str:
-        """Return Slack text unchanged until the real disentanglement model exists."""
-
-        return raw_text
+    def disentangle(self, raw_text: str) -> tuple[str, str]:
+        """Separate problem description from resolution in Slack threads.
+        
+        Returns:
+            A tuple of (problem_description, resolution).
+        """
+        # Fallback heuristic: Split thread roughly in half or by typical resolution keywords
+        lines = raw_text.split("\n")
+        problem_lines = []
+        resolution_lines = []
+        
+        resolution_keywords = ["fix", "resolved", "solution", "merged", "fixed", "done"]
+        
+        in_resolution = False
+        for line in lines:
+            if not in_resolution and any(kw in line.lower() for kw in resolution_keywords):
+                in_resolution = True
+            
+            if in_resolution:
+                resolution_lines.append(line)
+            else:
+                problem_lines.append(line)
+                
+        # If no resolution found by keywords, just return all as resolution so it gets indexed
+        if not resolution_lines:
+            resolution_lines = problem_lines
+            problem_lines = []
+            
+        return "\n".join(problem_lines).strip(), "\n".join(resolution_lines).strip()
 
     def _jira_chunks(self, text: str) -> list[str]:
         """Split Jira content by comment boundaries and token-limit large comments."""
