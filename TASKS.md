@@ -241,12 +241,12 @@ gantt
   - Enforce `<TAG:value>` patterns as always-preserve via pre-pass
   - Unit test: output token count â‰¤ budget + 5 %; all `<TRACE_ID:*>` tags present in output
 
-- [ ] **P3-R4** `[RAG]` Implement `src/id_preservation.py` â€” `TechnicalIDPreservationLayer`:
+- [x] **P3-R4** `[RAG]` Implement `src/id_preservation.py` â€” `TechnicalIDPreservationLayer`:
   - Post-compression verification and re-injection as described in `rag.md Â§6.2`
   - Emits `nexgen_rag_id_reinjected_total` Prometheus counter per re-injection
   - Unit test: deliberately strip one `<TRACE_ID:*>` from compressed text â†’ re-injected in output
 
-- [ ] **P3-R5** `[RAG]` Integrate conflict detection + compaction into `POST /knowledge`:
+- [x] **P3-R5** `[RAG]` Integrate conflict detection + compaction into `POST /knowledge`:
   - After `AuthorityScorer`, run `ConflictDetector`
   - If conflicts: run `MultiAgentDebate`; replace losing chunk with winner/merged chunk
   - Run `LLMLingua2Compactor` + `TechnicalIDPreservationLayer`
