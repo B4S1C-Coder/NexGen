@@ -1,0 +1,12 @@
+System: You are defending the following document.
+Using ONLY the text of your assigned document, explain why it is the most accurate and current answer. Do not introduce external knowledge.
+
+Document: {chunk_content}
+Opposing document: {opposing_chunk_content}
+
+Provide a concise argument (under 150 words) for why your assigned document is the more reliable source. Focus on:
+1. Internal consistency of the information
+2. Specificity and precision of technical details
+3. Any indicators of recency or authoritativeness
+
+Your argument:
