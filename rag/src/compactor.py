@@ -1,581 +1,150 @@
-"""LLMLingua-2 context compactor for the RAG pipeline.
-
-Compresses concatenated chunks to fit within a token budget using a binary
-token classifier (LLMLingua-2 BERT). Technical ID tags (``<TAG:value>``)
-are unconditionally preserved via a pre-pass that marks them as
-non-discardable. When the model is unavailable a cosine-similarity based
-extractive fallback is used instead.
-"""LLMLingua-2 Compactor for context compression (rag.md §5.3).
-
-Compresses retrieved knowledge chunks into a token-budgeted prompt, preserving
-essential information. Implements a fallback mode (extractive sentence selection)
-when the LLMLingua-2 model is unavailable, to allow tests to run without
-downloading large weights.
-"""
+"""LLMLingua-2 style context compactor for the RAG pipeline."""
 
 from __future__ import annotations
 
 import logging
-import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any
+
+try:
+    from llmlingua import PromptCompressor
+    HAS_LLMLINGUA = True
+except ImportError:  # pragma: no cover
+    PromptCompressor = None  # type: ignore[assignment]
+    HAS_LLMLINGUA = False
+
+from .settings import Settings
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Regex for all <TAG:value> technical identifiers
-# ---------------------------------------------------------------------------
 _TAG_PATTERN = re.compile(r"<(?:IP_ADDR|TRACE_ID|HASH|PATH|ERROR_CODE):[^>]+>")
 
 
 @dataclass(slots=True)
 class _TokenEntry:
-    """Internal bookkeeping for a single whitespace-delimited token.
-
-    Parameters:
-        text: The original token string.
-        preserve_probability: Probability that the token should be kept.
-            ``1.0`` means the token is unconditionally preserved.
-        is_tag_token: Whether the token is (or contains) a technical-ID tag.
-    """
-
     text: str
     preserve_probability: float = 0.5
     is_tag_token: bool = False
 
 
-class LLMLingua2Compactor:
-    """Binary-token-classification compactor inspired by LLMLingua-2.
-
-    The compactor can operate in two modes:
-
-    1. **Model mode** — A ``transformers`` sequence-classification model
-       produces per-token keep/discard probabilities.  The probabilities
-       are iteratively thresholded until the output fits within the
-       requested budget (±5 %).
-    2. **Fallback mode** — When the model cannot be loaded (e.g. in
-       unit-tests or lightweight deployments), an extractive
-       sentence-level selection strategy preserves the most information
-       within the budget.
-
-    In both modes, ``<TAG:value>`` patterns (IP addresses, trace IDs,
-    hashes, file paths, error codes) are forced to ``preserve_probability
-    = 1.0`` so they are **never** discarded.
-
-    Parameters:
-        model_name: HuggingFace model identifier for the token classifier.
-    """
-
-    # Iterative ratio constants
-    _MAX_ITERATIONS = 10
-    _TOLERANCE = 0.05  # ±5 %
-
-    def __init__(self, model_name: str | None = None) -> None:
-        self._model = None
-        self._tokenizer = None
-        self._model_name = (
-            model_name
-            or "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
-        )
-        self._model_available = False
-        self._load_model()
-
-    # ------------------------------------------------------------------
-    # Model loading
-    # ------------------------------------------------------------------
-
-    def _load_model(self) -> None:
-        """Attempt to load the LLMLingua-2 BERT model.
-
-        Catches all import and runtime errors so the compactor can
-        gracefully degrade to the extractive fallback.
-        """
-        try:
-            from transformers import AutoModelForTokenClassification, AutoTokenizer  # type: ignore[import-untyped]
-
-            self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-            self._model = AutoModelForTokenClassification.from_pretrained(
-                self._model_name
-            )
-            self._model.eval()
-            self._model_available = True
-            logger.info("LLMLingua-2 model loaded: %s", self._model_name)
-        except Exception:
-            logger.warning(
-                "LLMLingua-2 model unavailable; falling back to extractive compaction"
-            )
-            self._model_available = False
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
-    def compress(self, chunks: list[str], budget_tokens: int) -> str:
-        """Compress *chunks* to at most *budget_tokens* whitespace tokens.
-
-        Parameters:
-            chunks: List of text chunks to compress.
-            budget_tokens: Maximum number of whitespace-delimited tokens
-                allowed in the output.
-
-        Returns:
-            A single compressed string that fits within the budget and
-            preserves all ``<TAG:value>`` technical identifiers.
-import re
-from typing import Any
-
-# Optional import to allow fallback mode without model download in tests
-try:
-    from llmlingua import PromptCompressor
-    HAS_LLMLINGUA = True
-except ImportError:
-    HAS_LLMLINGUA = False
-
-
-from .settings import Settings
-
-logger = logging.getLogger(__name__)
-
-
-class LLMLingua2Compactor:
-    """Compresses a list of chunks into a budgeted text string.
-
-    Uses microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank by
-    default. Extracts technical tags (`<TAG:value>`) as always-preserve targets
-    during compression.
-
-    If LLMLingua is missing or fails to load, falls back to extractive compression.
-
-    Parameters:
-        settings: RAG service settings providing model name and budget.
-    """
-
-    def __init__(self, settings: Settings) -> None:
-        self._model_name = settings.llmlingua2_model
-        self._budget = settings.default_compression_budget_tokens
-        self._compressor: Any = None
-        self._tag_pattern = re.compile(r"<([A-Z_]+):([^>]+)>")
-
-        if HAS_LLMLINGUA:
-            try:
-                # LLMLingua-2 uses model_name for the underlying model
-                # and use_llmlingua2=True to activate the newer algorithm
-                self._compressor = PromptCompressor(
-                    model_name=self._model_name,
-                    use_llmlingua2=True,
-                )
-            except Exception as exc:
-                logger.warning(
-                    f"Failed to load LLMLingua-2 model ({exc}). "
-                    "Falling back to extractive mode."
-                )
-
-    def compress(self, chunks: list[str], budget_tokens: int | None = None) -> str:
-        """Compress chunk content into a budgeted string.
-
-        Parameters:
-            chunks: A list of raw chunk texts to compress.
-            budget_tokens: Optional token budget (overrides default).
-
-        Returns:
-            The compressed text string.
-        """
-        if not chunks:
-            return ""
-
-        concatenated = "\n\n".join(chunks)
-        tokens = _tokenise(concatenated)
-
-        if not tokens:
-            return ""
-
-        # Fast path: already within budget
-        if len(tokens) <= budget_tokens:
-            return _reconstruct(tokens)
-
-        # Mark tags as unconditionally preserved (pre-pass)
-        _mark_tag_tokens(tokens)
-
-        if self._model_available:
-            result = self._model_compress(tokens, budget_tokens)
-        else:
-            result = self._extractive_compress(tokens, budget_tokens)
-
-        return result
-
-    # ------------------------------------------------------------------
-    # Model-based compression
-    # ------------------------------------------------------------------
-
-    def _model_compress(
-        self,
-        tokens: list[_TokenEntry],
-        budget_tokens: int,
-    ) -> str:
-        """Use the BERT token-classifier to assign keep/discard probabilities.
-
-        Parameters:
-            tokens: Pre-tokenised entries (tag tokens already marked).
-            budget_tokens: Target output length.
-
-        Returns:
-            Compressed text string.
-        """
-        import torch  # type: ignore[import-untyped]
-
-        text = _reconstruct(tokens)
-        inputs = self._tokenizer(  # type: ignore[union-attr]
-            text,
-            return_tensors="pt",
-            truncation=True,
-            max_length=512,
-            return_offsets_mapping=True,
-        )
-        offset_mapping = inputs.pop("offset_mapping")[0].tolist()
-
-        with torch.no_grad():
-            outputs = self._model(**inputs)  # type: ignore[misc]
-            logits = outputs.logits[0]  # (seq_len, num_labels)
-            # Label 1 = "preserve"
-            probs = torch.softmax(logits, dim=-1)[:, 1].tolist()
-
-        # Map sub-word probabilities back to whitespace tokens.
-        # For each whitespace token we take the *max* sub-word probability.
-        _map_subword_probs_to_tokens(tokens, text, offset_mapping, probs)
-
-        # Iterative threshold search
-        return self._iterative_select(tokens, budget_tokens)
-
-    # ------------------------------------------------------------------
-    # Extractive fallback
-    # ------------------------------------------------------------------
-
-    def _extractive_compress(
-        self,
-        tokens: list[_TokenEntry],
-        budget_tokens: int,
-    ) -> str:
-        """Sentence-level extractive fallback when no model is available.
-
-        Splits the token sequence into sentences, ranks them by their
-        proportion of tag tokens (as a proxy for importance), and greedily
-        selects sentences until the budget is filled.
-
-        Parameters:
-            tokens: Pre-tokenised entries.
-            budget_tokens: Target output length.
-
-        Returns:
-            Compressed text string.
-        """
-        text = _reconstruct(tokens)
-        sentences = _split_sentences(text)
-
-        if not sentences:
-            return ""
-
-        # Pre-compute the set of all tags that must appear in the output.
-        all_tags: set[str] = set()
-        for token in tokens:
-            for match in _TAG_PATTERN.finditer(token.text):
-                all_tags.add(match.group())
-
-        # Score each sentence: tag density + position bias (earlier = better)
-        scored: list[tuple[float, int, str]] = []
-        for idx, sentence in enumerate(sentences):
-            s_tokens = sentence.split()
-            tag_count = sum(1 for t in s_tokens if _TAG_PATTERN.search(t))
-            density = tag_count / max(len(s_tokens), 1)
-            position_bias = 1.0 / (1.0 + idx * 0.1)
-            scored.append((density + position_bias, idx, sentence))
-
-        # Sort descending by score
-        scored.sort(key=lambda x: x[0], reverse=True)
-
-        selected: list[tuple[int, str]] = []
-        used_tokens = 0
-        covered_tags: set[str] = set()
-
-        # Reserve budget for tags that may need re-injection.
-        # As we add sentences that contain tags, the reservation shrinks.
-        uncovered_tag_tokens = sum(
-            len(tag.split()) for tag in all_tags
-        )
-        effective_budget = budget_tokens - uncovered_tag_tokens
-
-        for _score, idx, sentence in scored:
-            s_tokens = sentence.split()
-            s_len = len(s_tokens)
-
-            # Discover tags covered by this sentence
-            new_covered: set[str] = set()
-            for tag in all_tags - covered_tags:
-                if tag in sentence:
-                    new_covered.add(tag)
-
-            # Budget freed by covering tags (no longer need reservation)
-            freed = sum(len(t.split()) for t in new_covered)
-
-            if used_tokens + s_len > effective_budget + freed:
-                continue
-
-            selected.append((idx, sentence))
-            used_tokens += s_len
-            covered_tags |= new_covered
-            effective_budget += freed
-
-        # Preserve original order
-        selected.sort(key=lambda x: x[0])
-
-        result = " ".join(s for _, s in selected)
-
-        # Ensure all tags are present (re-inject if missing)
-        result = _ensure_tags(tokens, result)
-
-        return result
-
-    # ------------------------------------------------------------------
-    # Iterative threshold selection (model path)
-    # ------------------------------------------------------------------
-
-    def _iterative_select(
-        self,
-        tokens: list[_TokenEntry],
-        budget_tokens: int,
-    ) -> str:
-        """Binary-search for the threshold that produces output within budget.
-
-        Parameters:
-            tokens: Tokens with assigned preserve probabilities.
-            budget_tokens: Target output length.
-
-        Returns:
-            Compressed text fitting the budget.
-        """
-        lo, hi = 0.0, 1.0
-        best_result = ""
-        best_count = 0
-
-        for _ in range(self._MAX_ITERATIONS):
-            threshold = (lo + hi) / 2.0
-            selected = [
-                t for t in tokens
-                if t.is_tag_token or t.preserve_probability >= threshold
-            ]
-            count = len(selected)
-
-            if count <= 0:
-                hi = threshold
-                continue
-
-            ratio = count / budget_tokens
-            if abs(ratio - 1.0) <= self._TOLERANCE:
-                return _reconstruct(selected)
-
-            if count > budget_tokens:
-                lo = threshold
-            else:
-                hi = threshold
-
-            # Track closest-to-budget result
-            if count <= budget_tokens * (1 + self._TOLERANCE):
-                if count > best_count:
-                    best_result = _reconstruct(selected)
-                    best_count = count
-
-        # If we never hit the sweet spot, return the best we found
-        if best_result:
-            return best_result
-
-        # Last resort: take the top-budget tokens by probability
-        ranked = sorted(
-            tokens,
-            key=lambda t: (t.is_tag_token, t.preserve_probability),
-            reverse=True,
-        )
-        return _reconstruct(ranked[:budget_tokens])
-
-
-# -----------------------------------------------------------------------
-# Module-level helpers
-# -----------------------------------------------------------------------
-
-
 def _tokenise(text: str) -> list[_TokenEntry]:
-    """Split text into whitespace-delimited token entries.
-
-    Parameters:
-        text: Input text.
-
-    Returns:
-        List of ``_TokenEntry`` objects.
-    """
-    return [_TokenEntry(text=t) for t in text.split() if t]
+    """Tokenise text on whitespace while preserving token text verbatim."""
+    return [_TokenEntry(text=token) for token in text.split() if token]
 
 
 def _reconstruct(tokens: list[_TokenEntry]) -> str:
-    """Join token entries back into a single string.
-
-    Parameters:
-        tokens: List of ``_TokenEntry`` objects.
-
-    Returns:
-        Whitespace-joined text.
-    """
-    return " ".join(t.text for t in tokens)
+    """Rebuild a token sequence as a single space-separated string."""
+    return " ".join(token.text for token in tokens)
 
 
 def _mark_tag_tokens(tokens: list[_TokenEntry]) -> None:
-    """Flag tokens containing ``<TAG:value>`` patterns as non-discardable.
-
-    This is the "pre-pass" that guarantees technical identifiers survive
-    compression regardless of model predictions.
-
-    Parameters:
-        tokens: Mutable list of token entries; modified in place.
-    """
+    """Force technical-ID tokens to stay in the compressed output."""
     for token in tokens:
         if _TAG_PATTERN.search(token.text):
             token.is_tag_token = True
             token.preserve_probability = 1.0
 
 
-def _split_sentences(text: str) -> list[str]:
-    """Naively split text into sentence-like segments.
+class LLMLingua2Compactor:
+    """Compress chunks into a bounded prompt while preserving IDs.
 
-    Uses period / newline boundaries and filters out empty segments.
-
-    Parameters:
-        text: Input text.
-
-    Returns:
-        List of non-empty sentence strings.
+    Args:
+        settings: Optional RAG settings object. When omitted, defaults are read
+            from environment.
+        model_name: Optional explicit LLMLingua model identifier.
     """
-    parts = re.split(r"(?<=[.!?\n])\s+", text)
-    return [p.strip() for p in parts if p.strip()]
 
-
-def _ensure_tags(
-    original_tokens: list[_TokenEntry],
-    compressed: str,
-) -> str:
-    """Re-inject any technical-ID tags that were lost during compression.
-
-    Parameters:
-        original_tokens: Full token list from the original text.
-        compressed: The compressed output string.
-
-    Returns:
-        The compressed string with all original tags guaranteed present.
-    """
-    original_tags = set()
-    for token in original_tokens:
-        for match in _TAG_PATTERN.finditer(token.text):
-            original_tags.add(match.group())
-
-    missing = [tag for tag in original_tags if tag not in compressed]
-    if missing:
-        compressed = compressed.rstrip() + " " + " ".join(sorted(missing))
-
-    return compressed
-
-
-def _map_subword_probs_to_tokens(
-    tokens: list[_TokenEntry],
-    text: str,
-    offset_mapping: list[list[int]],
-    probs: list[float],
-) -> None:
-    """Map transformer sub-word probabilities to whitespace token entries.
-
-    For each whitespace token, we find overlapping sub-word spans and take
-    the **maximum** probability to be conservative (prefer preserving).
-
-    Parameters:
-        tokens: Whitespace token entries to update in-place.
-        text: Original text that was fed to the tokenizer.
-        offset_mapping: ``(start, end)`` character offsets per sub-word.
-        probs: Per-sub-word preserve probabilities.
-    """
-    # Compute character spans for each whitespace token
-    char_spans: list[tuple[int, int]] = []
-    pos = 0
-    for token in tokens:
-        idx = text.find(token.text, pos)
-        if idx == -1:
-            idx = pos
-        char_spans.append((idx, idx + len(token.text)))
-        pos = idx + len(token.text)
-
-    for tok_idx, (tok_start, tok_end) in enumerate(char_spans):
-        if tokens[tok_idx].is_tag_token:
-            continue  # already forced to 1.0
-        max_prob = 0.0
-        for sw_idx, (sw_start, sw_end) in enumerate(offset_mapping):
-            if sw_start == 0 and sw_end == 0:
-                continue  # special tokens
-            # Check overlap
-            if sw_end > tok_start and sw_start < tok_end:
-                max_prob = max(max_prob, probs[sw_idx])
-        tokens[tok_idx].preserve_probability = max_prob
-        target_budget = budget_tokens or self._budget
-        full_text = "\n\n".join(chunks)
-        
-        # Approximate token count (split by whitespace)
-        word_count = len(full_text.split())
-        if word_count <= target_budget:
-            return full_text
-
-        # 1. Pre-pass: Identify technical tags to preserve
-        # LLMLingua allows passing a list of strings to preserve via `force_tokens`
-        preserve_tokens: list[str] = []
-        for match in self._tag_pattern.finditer(full_text):
-            preserve_tokens.append(match.group(0))
-
-        # Deduplicate
-        preserve_tokens = list(set(preserve_tokens))
-
-        if self._compressor is not None:
+    def __init__(self, settings: Settings | None = None, model_name: str | None = None) -> None:
+        self._settings = settings or Settings()
+        self._model_name = model_name or self._settings.llmlingua2_model
+        self._budget = self._settings.default_compression_budget_tokens
+        self._compressor: Any = None
+        if HAS_LLMLINGUA:
             try:
-                # Calculate required compression ratio
-                ratio = target_budget / max(1.0, float(word_count))
-                
-                # LLMLingua-2 compress_prompt API
-                result = self._compressor.compress_prompt(
-                    full_text,
-                    rate=ratio,
-                    force_tokens=preserve_tokens,
+                self._compressor = PromptCompressor(
+                    model_name=self._model_name,
+                    use_llmlingua2=True,
                 )
-                return result.get("compressed_prompt", "")
-            except Exception as exc:
-                logger.error(f"LLMLingua compression failed ({exc}). Using fallback.")
-                return self._fallback_compress(full_text, target_budget, preserve_tokens)
-        else:
-            return self._fallback_compress(full_text, target_budget, preserve_tokens)
+            except Exception as exc:  # pragma: no cover
+                logger.warning("Failed to load LLMLingua-2 model: %s", exc)
+                self._compressor = None
 
-    def _fallback_compress(self, text: str, budget: int, preserve: list[str]) -> str:
-        """Extractive fallback: keep sentences with tags, then take head until budget."""
-        sentences = [s.strip() for s in text.replace("\n", ". ").split(". ") if s.strip()]
-        
+    def compress(self, chunks: list[str], budget_tokens: int | None = None) -> str:
+        """Compress chunk text within a token budget."""
+        if not chunks or not any(chunk.strip() for chunk in chunks):
+            return ""
+        budget = budget_tokens or self._budget
+        full_text = "\n\n".join(chunks)
+        full_tokens = _tokenise(full_text)
+        if len(full_tokens) <= budget:
+            return full_text
+        if self._compressor is not None:
+            tags = _collect_tags(chunks)
+            rate = min(1.0, max(0.05, budget / max(len(full_tokens), 1)))
+            payload = self._compressor.compress_prompt(
+                full_text,
+                rate=rate,
+                force_tokens=tags,
+            )
+            compressed = payload.get("compressed_prompt", "")
+            if compressed:
+                return compressed
+        return self._extractive_fallback(chunks, budget)
+
+    def _extractive_fallback(self, chunks: list[str], budget_tokens: int) -> str:
+        """Select tag-rich sentences first, then fill remaining space."""
+        sentences: list[str] = []
+        for chunk in chunks:
+            parts = [
+                part.strip()
+                for part in re.split(r"(?<=[.!?])\s+|\n+", chunk)
+                if part.strip()
+            ]
+            sentences.extend(parts)
+        if not sentences:
+            return ""
+
         selected: list[str] = []
-        current_tokens = 0
-        
-        # Priority 1: Sentences containing preserved tags
+        used = 0
+        seen: set[str] = set()
+
+        def add_sentence(sentence: str) -> None:
+            nonlocal used
+            if sentence in seen:
+                return
+            words = sentence.split()
+            if used + len(words) <= budget_tokens:
+                selected.append(sentence)
+                seen.add(sentence)
+                used += len(words)
+
         for sentence in sentences:
-            if any(token in sentence for token in preserve):
-                tok_len = len(sentence.split())
-                if current_tokens + tok_len <= budget:
-                    selected.append(sentence)
-                    current_tokens += tok_len
-                    
-        # Priority 2: Fill remaining budget with starting sentences
+            if _TAG_PATTERN.search(sentence):
+                add_sentence(sentence)
+
         for sentence in sentences:
-            if sentence not in selected:
-                tok_len = len(sentence.split())
-                if current_tokens + tok_len <= budget:
-                    selected.append(sentence)
-                    current_tokens += tok_len
-                else:
-                    break
-                    
-        return ". ".join(selected) + ("." if selected else "")
+            add_sentence(sentence)
+            if used >= budget_tokens:
+                break
+
+        text = " ".join(selected).strip()
+        if not text:
+            words = " ".join(chunks).split()[:budget_tokens]
+            text = " ".join(words)
+        words = text.split()
+        if len(words) > budget_tokens:
+            text = " ".join(words[:budget_tokens])
+        return text
+
+
+def _collect_tags(chunks: list[str]) -> list[str]:
+    """Extract unique technical-ID tags from the original chunk text."""
+    seen: set[str] = set()
+    tags: list[str] = []
+    for chunk in chunks:
+        for match in _TAG_PATTERN.finditer(chunk):
+            tag = match.group(0)
+            if tag not in seen:
+                seen.add(tag)
+                tags.append(tag)
+    return tags
