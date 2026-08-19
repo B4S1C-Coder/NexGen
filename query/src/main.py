@@ -27,6 +27,7 @@ from prometheus_client import (
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from nexgen_shared.runtime import mock_services_enabled
 from nexgen_shared.schemas import (
     LogRetrievalRequest,
     LogRetrievalResult,
@@ -37,6 +38,8 @@ from nexgen_shared.errors import (
     E002KqlSyntaxError,
     E003ElasticsearchTimeout,
 )
+
+from .dev_fixtures import mock_retrieve
 
 from .schema_linker import SchemaLinker
 from .few_shot import FewShotSelector
@@ -114,6 +117,13 @@ pii_masker = PIIMasker()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start all pipeline components on app startup, shut down on exit."""
+    app.state.mock_services = mock_services_enabled()
+    if app.state.mock_services:
+        logger.info("Starting NL-to-KQL pipeline in MOCK_SERVICES mode.")
+        yield
+        logger.info("NL-to-KQL mock pipeline shut down.")
+        return
+
     logger.info("Starting NL-to-KQL pipeline components...")
     await schema_linker.startup()
     await few_shot_selector.startup()
@@ -164,12 +174,22 @@ async def retrieve(request: LogRetrievalRequest) -> LogRetrievalResult:
     start = time.perf_counter()          # P3-Q2
     refinement_attempts = 0
 
+    if mock_services_enabled():
+        try:
+            return mock_retrieve(request)
+        finally:
+            QUERY_LATENCY.observe(time.perf_counter() - start)
+
     try:
         # Stage 1 — Schema linking
+        schema_payload = request.schema_context
+        schema_context_from_request = (
+            schema_payload.model_dump() if schema_payload is not None else {}
+        )
         schema_ctx = await schema_linker.link(
             natural_language=request.natural_language,
             index_hints=request.index_hints,
-            schema_context_from_request=request.schema_context or {},
+            schema_context_from_request=schema_context_from_request,
         )
 
         # Stage 2 — Few-shot example retrieval

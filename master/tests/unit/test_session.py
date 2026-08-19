@@ -53,3 +53,13 @@ def test_trim_context(session_manager):
     assert len(trimmed.active_context_window) == 20
     assert trimmed.active_context_window[0].content == "msg_24"
     assert trimmed.active_context_window[-1].content == "msg_23"
+
+
+@pytest.mark.asyncio
+async def test_session_memory_backend_roundtrip():
+    """In-memory session store must persist without Redis."""
+    manager = SessionManager("redis://unused", memory_only=True)
+    state = SessionState(session_id="mem-1", iteration_count=3)
+    await manager.put("mem-1", state)
+    retrieved = await manager.get("mem-1")
+    assert retrieved.iteration_count == 3

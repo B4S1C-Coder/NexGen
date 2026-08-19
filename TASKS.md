@@ -327,7 +327,7 @@ gantt
 
 > Goal: The three services work together end-to-end. `POST /query` returns a real `RCAReport`.
 
-- [ ] **P4-1** `[MASTER]` Wire `POST /query` end-to-end:
+- [x] **P4-1** `[MASTER]` Wire `POST /query` end-to-end:
   - `SessionManager â†’ IntentClassifier â†’ DAGPlanner â†’ TaskFetchingUnit â†’ ContextAssembler â†’ (iterate up to 3) â†’ ReasonerAgent â†’ ValidatorAgent â†’ RCASynthesiser`
   - Full OTel tracing across all steps
   - Integration test (all services running, mocked LLMs): POST with "Why did payments fail at 09:57?" returns `RCAReport` with `confidence > 0` and non-empty `root_cause_summary`

@@ -11,7 +11,10 @@ import httpx
 from qdrant_client import AsyncQdrantClient, QdrantClient
 
 from nexgen_shared.logging import configure_structlog, get_logger
+from nexgen_shared.runtime import mock_services_enabled
 from nexgen_shared.schemas import KnowledgeChunk, KnowledgeRequest, KnowledgeResult
+
+from .dev_fixtures import mock_knowledge
 
 from .authority import AuthorityScorer
 from .compactor import LLMLingua2Compactor
@@ -40,10 +43,18 @@ async def lifespan(app: FastAPI):
 
     settings = Settings()
     app.state.settings = settings
+    app.state.mock_services = mock_services_enabled()
 
     configure_structlog(log_level=settings.log_level, json_format=False)
     app.state.log = get_logger(service="rag", query_id=None)
-    app.state.log.info("startup", rag_port=settings.rag_port)
+    app.state.log.info("startup", rag_port=settings.rag_port, mock=app.state.mock_services)
+
+    if app.state.mock_services:
+        try:
+            yield
+        finally:
+            app.state.log.info("shutdown")
+        return
 
     # Synchronous client for ingest
     app.state.ingest_service = IngestService(
@@ -124,6 +135,9 @@ async def knowledge(request: KnowledgeRequest) -> KnowledgeResult:
     compactor: LLMLingua2Compactor = app.state.compactor
     id_preservation: TechnicalIDPreservationLayer = app.state.id_preservation
     log = app.state.log
+
+    if getattr(app.state, "mock_services", False) or mock_services_enabled():
+        return mock_knowledge(request)
 
     # 1. Parallel retrieval
     dense_chunks, sparse_chunks = await asyncio.gather(

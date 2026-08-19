@@ -27,7 +27,7 @@ class DAGExecutor:
         self.query_service_url = query_service_url
         self.rag_service_url = rag_service_url
         self.mock_mode = os.getenv("MOCK_SERVICES", "false").lower() == "true"
-        self.timeout = 10.0
+        self.timeout = float(os.getenv("HTTP_TIMEOUT_SECONDS", "45"))
         
         if self.mock_mode:
             self.mock_query = MockQueryPipeline() if MockQueryPipeline else None
@@ -69,7 +69,12 @@ class DAGExecutor:
                 result = await self.mock_query.retrieve(req)
                 return {node.step_id: result}
             else:
-                return await self._http_call(f"{self.query_service_url}/retrieve", req.model_dump(), node.step_id, LogRetrievalResult)
+                return await self._http_call(
+                    f"{self.query_service_url}/retrieve",
+                    req.model_dump(mode="json", by_alias=True),
+                    node.step_id,
+                    LogRetrievalResult,
+                )
 
         elif node.action_type == "FETCH_DOCS":
             req = KnowledgeRequest(
@@ -85,7 +90,12 @@ class DAGExecutor:
                 result = await self.mock_rag.retrieve_knowledge(req)
                 return {node.step_id: result}
             else:
-                return await self._http_call(f"{self.rag_service_url}/knowledge", req.model_dump(), node.step_id, KnowledgeResult)
+                return await self._http_call(
+                    f"{self.rag_service_url}/knowledge",
+                    req.model_dump(mode="json", by_alias=True),
+                    node.step_id,
+                    KnowledgeResult,
+                )
 
         return {}
 

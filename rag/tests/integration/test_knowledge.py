@@ -258,3 +258,23 @@ def test_knowledge_pipeline_compression_populates_token_count(mock_dense, mock_s
     # Token count should be populated and within budget + 5%
     assert data["total_tokens_after_compression"] > 0
     assert data["total_tokens_after_compression"] <= 22  # 20 + ~5%
+
+
+def test_knowledge_mock_mode_returns_runbook(monkeypatch) -> None:
+    """Fixture knowledge pathway must succeed without Qdrant or cross-encoders."""
+    monkeypatch.setenv("MOCK_SERVICES", "true")
+    body = {
+        "query_id": "q-mock",
+        "semantic_query": "payments database connection refused",
+        "source_filters": ["runbooks"],
+        "time_window": {"not_after": datetime.now(UTC).isoformat()},
+        "max_chunks": 12,
+        "compression_budget_tokens": 2000,
+    }
+    with TestClient(app) as client:
+        response = client.post("/knowledge", json=body)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["chunks"]
+    assert data["chunks"][0]["source_type"] == "runbook"

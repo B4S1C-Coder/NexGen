@@ -29,8 +29,12 @@ class Settings(BaseSettings):
     )
 
     http_timeout_seconds: float = Field(
-        default=30.0,
+        default=45.0,
         validation_alias="HTTP_TIMEOUT_SECONDS"
+    )
+    mock_services: bool = Field(
+        default=False,
+        validation_alias="MOCK_SERVICES",
     )
 
     # LLM (served by llama.cpp)

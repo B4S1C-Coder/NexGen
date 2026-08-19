@@ -1,19 +1,19 @@
-import os
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 from typing import Any
 
-import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from nexgen_shared.logging import configure_structlog, get_logger
-from nexgen_shared.schemas import RCAEvidenceItem, RCAReport, UserQuery
+from nexgen_shared.schemas import RCAReport, UserQuery
+from .orchestrator import MasterOrchestrator
 from .settings import Settings
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Start the orchestrator and structured logging for the Master service."""
     settings = Settings()
     app.state.settings = settings
 
@@ -23,44 +23,66 @@ async def lifespan(app: FastAPI):
     )
 
     app.state.log = get_logger(service="master", query_id=None)
+    app.state.orchestrator = MasterOrchestrator(settings=settings)
     app.state.log.info("startup", master_port=settings.master_port)
-    app.state.http = httpx.AsyncClient(timeout=settings.http_timeout_seconds)
 
     try:
         yield
     finally:
-        await app.state.http.aclose()
         app.state.log.info("shutdown")
+
 
 app = FastAPI(title="nexgen-master", lifespan=lifespan)
 
+
 @app.get("/health")
 async def health() -> dict[str, Any]:
-    return { "status": "ok", "service": "master" }
+    """Liveness probe used by the TUI and compose healthchecks."""
+    return {"status": "ok", "service": "master"}
+
+
+@app.get("/status")
+async def status() -> dict[str, Any]:
+    """Report whether the orchestrator is bound and downstream URLs are set."""
+    settings: Settings = app.state.settings
+    orchestrator = getattr(app.state, "orchestrator", None)
+    return {
+        "status": "ok",
+        "service": "master",
+        "orchestrator": orchestrator is not None,
+        "query_service": settings.query_service,
+        "rag_service": settings.rag_service_url,
+    }
+
 
 @app.get("/session/{session_id}")
 async def get_session(session_id: str) -> dict[str, Any]:
-    # Redis backed manager would come here
-    return { "session_id": session_id, "history": [] }
+    """Return stored session history for a TUI or operator follow-up."""
+    orchestrator: MasterOrchestrator = app.state.orchestrator
+    state = await orchestrator.session_manager.get(session_id)
+    if not state.query_history and not state.active_context_window:
+        raise HTTPException(status_code=404, detail="session not found")
+    return {
+        "session_id": state.session_id,
+        "history": [
+            {"query_id": q.query_id, "raw_text": q.raw_text}
+            for q in state.query_history
+        ],
+        "turns": len(state.active_context_window),
+    }
+
+
+@app.get("/query/{query_id}/trace")
+async def query_trace(query_id: str) -> dict[str, Any]:
+    """Return live DAG stage events recorded for ``query_id``."""
+    orchestrator: MasterOrchestrator = app.state.orchestrator
+    return {"query_id": query_id, "events": orchestrator.traces.get(query_id, [])}
+
 
 @app.post("/query", response_model=RCAReport)
 async def query(user_query: UserQuery) -> RCAReport:
+    """Run the full Master DAG and return an RCA report."""
+    orchestrator: MasterOrchestrator = app.state.orchestrator
     log = get_logger(service="master", query_id=user_query.query_id)
-
-    # Downstream services would be called here
-    return RCAReport(
-        query_id=user_query.query_id,
-        root_cause_summary="Not yet implement (Phase 0).",
-        confidence=0.0,
-        evidence=[
-            RCAEvidenceItem(
-                type="system",
-                ref="master",
-                snippet="Phase 0. Downstream calls not wired yet."
-            )
-        ],
-        recommended_actions = ["Implement Master Orchestration pipeline."],
-        reasoning_trace_summary="No reasoning here (Phase 0).",
-        mttr_estimate_minutes=0,
-        generated_at=datetime.now(timezone.utc)
-    )
+    log.info("query_accepted", text=user_query.raw_text[:120])
+    return await orchestrator.execute_query(user_query)
