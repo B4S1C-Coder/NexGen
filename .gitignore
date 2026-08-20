@@ -18,4 +18,6 @@ dist/
 .vscode
 
 query/.env
-vendor/llama.cpp/build/master/.session_rag_db/
+vendor/llama.cpp/build/
+master/.session_rag_db/
+.session_rag_db
