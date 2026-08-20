@@ -194,7 +194,7 @@ class MasterOrchestrator:
                 Message(role="assistant", content=report.root_cause_summary)
             )
             await self.session_manager.put(
-                session.session_id, self.session_manager.trim_context(session)
+                session.session_id, self.session_manager.trim_context(session, query.raw_text)
             )
 
             await emit({"stage": "final", "data": report.model_dump(mode="json")})

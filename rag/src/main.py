@@ -186,17 +186,14 @@ async def knowledge(request: KnowledgeRequest) -> KnowledgeResult:
                     chunk_i=pair.chunk_i.chunk_id,
                     chunk_j=pair.chunk_j.chunk_id,
                 )
-                # On E007 or other failure, keep the higher-scoring chunk
-                if pair.chunk_i.score >= pair.chunk_j.score:
-                    top_chunks = [
-                        c for c in top_chunks
-                        if c.chunk_id != pair.chunk_j.chunk_id
-                    ]
-                else:
-                    top_chunks = [
-                        c for c in top_chunks
-                        if c.chunk_id != pair.chunk_i.chunk_id
-                    ]
+                return KnowledgeResult(
+                    query_id=request.query_id,
+                    status="failure",
+                    chunks=[],
+                    total_tokens_after_compression=0,
+                    conflict_detected=True,
+                    error=f"E007: {exc}",
+                )
 
     # 8. LLMLingua-2 Context Compaction
     original_chunk_texts = [c.content for c in top_chunks]
