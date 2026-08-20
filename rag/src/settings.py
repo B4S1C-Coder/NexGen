@@ -43,6 +43,10 @@ class Settings(BaseSettings):
         default="cross-encoder/ms-marco-MiniLM-L-6-v2",
         validation_alias="CROSS_ENCODER_MODEL",
     )
+    min_relevance_score: float = Field(
+        default=-2.0,  # A slightly forgiving threshold for cross-encoders
+        validation_alias="MIN_RELEVANCE_SCORE",
+    )
     nli_model: str = Field(
         default="cross-encoder/nli-deberta-v3-small",
         validation_alias="NLI_MODEL",

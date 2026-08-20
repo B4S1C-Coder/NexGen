@@ -258,3 +258,77 @@ def test_knowledge_pipeline_compression_populates_token_count(mock_dense, mock_s
     # Token count should be populated and within budget + 5%
     assert data["total_tokens_after_compression"] > 0
     assert data["total_tokens_after_compression"] <= 22  # 20 + ~5%
+
+
+@patch("src.main.LLMLingua2Compactor")
+@patch("src.main.ConflictDetector")
+@patch("src.main.CrossEncoderReranker")
+@patch("src.main.SparseRetriever")
+@patch("src.main.DenseRetriever")
+def test_knowledge_pipeline_returns_compacted_content(mock_dense, mock_sparse, mock_reranker, mock_conflict, mock_compactor):
+    """The response content must come from the compactor output."""
+
+    chunk = _make_chunk(
+        "verbose-chunk",
+        "Verbose original text that should not be returned after compaction.",
+    )
+
+    with TestClient(app) as client:
+        client.app.state.dense_retriever = AsyncMock()
+        client.app.state.dense_retriever.retrieve.return_value = [chunk]
+        client.app.state.sparse_retriever = AsyncMock()
+        client.app.state.sparse_retriever.retrieve.return_value = []
+        client.app.state.reranker = MagicMock()
+        client.app.state.reranker.rerank.side_effect = lambda q, chunks: chunks
+        client.app.state.conflict_detector = MagicMock()
+        client.app.state.conflict_detector.detect_conflicts.return_value = []
+        client.app.state.compactor = MagicMock()
+        client.app.state.compactor.compress.return_value = "Compacted context only."
+        client.app.state.id_preservation = TechnicalIDPreservationLayer()
+
+        response = client.post("/knowledge", json=KNOWLEDGE_REQUEST)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["chunks"]) == 1
+    assert data["chunks"][0]["chunk_id"] == "verbose-chunk"
+    assert data["chunks"][0]["content"] == "Compacted context only."
+
+
+@patch("src.main.LLMLingua2Compactor")
+@patch("src.main.ConflictDetector")
+@patch("src.main.CrossEncoderReranker")
+@patch("src.main.SparseRetriever")
+@patch("src.main.DenseRetriever")
+def test_knowledge_pipeline_returns_reinjected_ids(mock_dense, mock_sparse, mock_reranker, mock_conflict, mock_compactor):
+    """Technical IDs stripped by compaction must be present in API content."""
+
+    chunk = _make_chunk(
+        "trace-chunk",
+        "Payment failure trace <TRACE_ID:abc123def456> confirms the timeout.",
+    )
+
+    with TestClient(app) as client:
+        client.app.state.dense_retriever = AsyncMock()
+        client.app.state.dense_retriever.retrieve.return_value = [chunk]
+        client.app.state.sparse_retriever = AsyncMock()
+        client.app.state.sparse_retriever.retrieve.return_value = []
+        client.app.state.reranker = MagicMock()
+        client.app.state.reranker.rerank.side_effect = lambda q, chunks: chunks
+        client.app.state.conflict_detector = MagicMock()
+        client.app.state.conflict_detector.detect_conflicts.return_value = []
+        client.app.state.compactor = MagicMock()
+        client.app.state.compactor.compress.return_value = (
+            "Payment failure trace confirms the timeout."
+        )
+        client.app.state.id_preservation = TechnicalIDPreservationLayer()
+
+        response = client.post("/knowledge", json=KNOWLEDGE_REQUEST)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["chunks"]) == 1
+    assert "<TRACE_ID:abc123def456>" in data["chunks"][0]["content"]
+    assert data["total_tokens_after_compression"] == len(
+        data["chunks"][0]["content"].split()
+    )
