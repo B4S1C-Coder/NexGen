@@ -207,24 +207,13 @@ async def knowledge(request: KnowledgeRequest) -> KnowledgeResult:
             query_id=request.query_id,
         )
 
-    # 10. Construct result chunks
-    # After compaction, we return individual chunk metadata but with the
-    # compressed content distributed back. For simplicity, when compaction
-    # produces a single merged string, we keep individual chunk metadata
-    # but mark the content as the compressed form.
+    # 10. Construct result chunks from the final compacted context.
     retrieved_at = datetime.now(timezone.utc)
-    knowledge_chunks = [
-        KnowledgeChunk(
-            chunk_id=c.chunk_id,
-            source_type=c.metadata.source_type,
-            source_uri=c.metadata.source_uri,
-            authority_tier=c.metadata.authority_tier,
-            recency_score=c.metadata.recency_score,
-            content=c.content,
-            retrieved_at=retrieved_at,
-        )
-        for c in top_chunks
-    ]
+    knowledge_chunks = _build_compacted_knowledge_chunks(
+        top_chunks,
+        final_text,
+        retrieved_at,
+    )
 
     return KnowledgeResult(
         query_id=request.query_id,
@@ -234,6 +223,44 @@ async def knowledge(request: KnowledgeRequest) -> KnowledgeResult:
         conflict_detected=conflict_detected,
         error=None,
     )
+
+
+def _build_compacted_knowledge_chunks(
+    chunks: list[RankedChunk],
+    compacted_text: str,
+    retrieved_at: datetime,
+) -> list[KnowledgeChunk]:
+    """Build response chunks from the compacted context string.
+
+    The compactor returns a single compressed context payload after conflict
+    resolution and ID preservation. The KnowledgeResult schema still requires
+    chunk metadata for citation, so the compacted payload is attached to the
+    highest-ranked surviving chunk.
+
+    Parameters:
+        chunks: Conflict-resolved and authority-ranked chunks.
+        compacted_text: Final text after compression and ID preservation.
+        retrieved_at: Timestamp to attach to the response chunk.
+
+    Returns:
+        A one-item KnowledgeChunk list containing the compacted context, or an
+        empty list when no context survived retrieval.
+    """
+    if not chunks or not compacted_text.strip():
+        return []
+
+    primary = chunks[0]
+    return [
+        KnowledgeChunk(
+            chunk_id=primary.chunk_id,
+            source_type=primary.metadata.source_type,
+            source_uri=primary.metadata.source_uri,
+            authority_tier=primary.metadata.authority_tier,
+            recency_score=primary.metadata.recency_score,
+            content=compacted_text,
+            retrieved_at=retrieved_at,
+        )
+    ]
 
 
 def _replace_conflict_loser(

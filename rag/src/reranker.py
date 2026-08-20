@@ -10,6 +10,7 @@ class CrossEncoderReranker:
     def __init__(self, settings: Settings) -> None:
         # Load the model specified in the configuration
         self.model = CrossEncoder(settings.cross_encoder_model, max_length=512)
+        self.settings = settings
 
     def rerank(self, query: str, chunks: list[RankedChunk]) -> list[RankedChunk]:
         """Score each chunk against the query using the cross-encoder.
@@ -44,4 +45,11 @@ class CrossEncoderReranker:
 
         # Sort descending by cross-encoder score
         reranked_chunks.sort(key=lambda c: c.cross_encoder_score or 0.0, reverse=True)
-        return reranked_chunks
+        
+        # Filter chunks below relevance threshold
+        filtered_chunks = [
+            c for c in reranked_chunks 
+            if (c.cross_encoder_score or 0.0) >= self.settings.min_relevance_score
+        ]
+        
+        return filtered_chunks
