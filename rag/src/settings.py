@@ -43,8 +43,11 @@ class Settings(BaseSettings):
         default="cross-encoder/ms-marco-MiniLM-L-6-v2",
         validation_alias="CROSS_ENCODER_MODEL",
     )
-    min_relevance_score: float = Field(
-        default=-2.0,  # A slightly forgiving threshold for cross-encoders
+    # Optional cut-off on the cross-encoder score. Off by default: ms-marco scores are raw
+    # logits whose range depends on the corpus (our runbooks score about -7..-11 for clearly
+    # relevant questions), so a fixed value like -2.0 silently drops every document.
+    min_relevance_score: float | None = Field(
+        default=None,
         validation_alias="MIN_RELEVANCE_SCORE",
     )
     nli_model: str = Field(
@@ -71,15 +74,12 @@ class Settings(BaseSettings):
         default=3,
         validation_alias="MAX_DEBATE_ROUNDS",
     )
-    llmlingua2_model: str = Field(
-        default="microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
-        validation_alias="LLMLINGUA2_MODEL",
-    )
-    default_compression_budget_tokens: int = Field(
-        default=2000,
-        validation_alias="DEFAULT_COMPRESSION_BUDGET_TOKENS",
-    )
     docs_path: str = Field(default="data/docs")
+    # Debate LLM: any OpenAI-compatible chat API. OLLAMA_BASE_URL is the base without /v1
+    # (e.g. https://api.groq.com/openai for Groq).
+    debate_llm_model: str = Field(default="llama3.2", validation_alias="DEBATE_LLM_MODEL")
+    debate_llm_api_key: str = Field(default="", validation_alias="DEBATE_LLM_API_KEY")
+    debate_llm_max_tokens: int = Field(default=300, validation_alias="DEBATE_LLM_MAX_TOKENS")
     jira_base_url: str | None = Field(default=None, validation_alias="JIRA_BASE_URL")
     jira_api_token: str | None = Field(default=None, validation_alias="JIRA_API_TOKEN")
     slack_bot_token: str | None = Field(default=None, validation_alias="SLACK_BOT_TOKEN")

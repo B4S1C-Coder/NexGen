@@ -3,15 +3,13 @@
 Requires Elasticsearch running on localhost:9200 (via docker compose).
 Seeds a test document, executes a real KQL query, verifies the result.
 
-TASKS.md P1-Q2: "Integration test (requires running ES): simple term
-query returns expected document from a seeded index."
-
 Run with:
     pytest tests/integration/test_executor_es.py -v
 """
 
 from __future__ import annotations
 
+import socket
 import uuid
 
 import pytest
@@ -25,6 +23,17 @@ from src.schema_linker import FieldMeta, SchemaContext
 # ---------------------------------------------------------------------------
 
 ES_URL = "http://localhost:9200"
+
+
+
+def _es_running() -> bool:
+    """True if something is listening on the Elasticsearch port."""
+    with socket.socket() as sock:
+        sock.settimeout(0.5)
+        return sock.connect_ex(("localhost", 9200)) == 0
+
+
+requires_es = pytest.mark.skipif(not _es_running(), reason="needs Elasticsearch on localhost:9200")
 
 # Unique index per test run — avoids stale data from previous runs
 TEST_INDEX = f"nexgen-test-{uuid.uuid4().hex[:8]}"
@@ -116,6 +125,7 @@ async def delete_index(client: AsyncElasticsearch) -> None:
 # Tests
 # ---------------------------------------------------------------------------
 
+@requires_es
 class TestExecutorWithRealElasticsearch:
     """Integration tests for ElasticsearchExecutor against real ES.
 
@@ -127,7 +137,7 @@ class TestExecutorWithRealElasticsearch:
     async def test_term_query_returns_seeded_document(self) -> None:
         """A term query on service.name must return the seeded document.
 
-        This is the core TASKS.md P1-Q2 requirement:
+        Core requirement:
         'simple term query returns expected document from a seeded index'
         """
         client = AsyncElasticsearch(ES_URL)

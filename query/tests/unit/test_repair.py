@@ -108,6 +108,20 @@ class TestRepairAgentSuccess:
         assert result == kql_good
 
     @pytest.mark.asyncio
+    async def test_repair_with_count_reports_attempts(self) -> None:
+        """repair_with_count returns how many attempts were needed."""
+        kql_bad = 'service.name: AND'
+        kql_good = 'service.name: "auth"'
+        agent = make_agent(
+            generator_returns=[kql_bad, kql_good],
+            validator_returns=[
+                make_invalid_result(kql_bad, ["Field 'service.name' has no value"]),
+                make_valid_result(kql_good),
+            ],
+        )
+        assert await agent.repair_with_count("show auth", make_schema_ctx(), make_examples()) == (kql_good, 2)
+
+    @pytest.mark.asyncio
     async def test_generator_called_twice_on_second_success(self) -> None:
         """Generator must be called twice when second attempt succeeds."""
         kql_bad = 'bad kql'

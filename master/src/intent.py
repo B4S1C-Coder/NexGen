@@ -1,95 +1,77 @@
-import os
+"""Step 1: decide whether a question needs logs, docs, or both."""
+
+from __future__ import annotations
+
 import re
-import json
-from typing import Optional, List, Dict
-from pydantic import BaseModel
+
 from openai import AsyncOpenAI
+from pydantic import BaseModel
+
+from src.llm import ask_json, load_prompt
+
+# Keyword groups. Order of the checks in classify() matters more than the lists.
+QUANTITATIVE = r"\b(how many|count|number of|total|sum|average|avg|error rate|top \d+|list|show|fetch|latest)\b"
+CAUSAL = r"\b(why|cause[ds]?|root cause|diagnose|investigate|what happened|went wrong|help)\b"
+SYMPTOM = r"\b(fail\w*|errors?|down|outage|broken|slow|timing out|timeouts?|crash\w*|spike|5\d\d|5xx|429s?|oom|wrong|can't|cannot|not working)\b"
+DOCS = r"\b(best practice|how (do|to|should)|what is|what's|what does|explain|describe|runbook|documentation|docs?|guide|recommended|policy|who owns|configure|where is)\b"
+
 
 class IntentResult(BaseModel):
-    """ Routing schema outputted by the classifier based on query semantics. """
+    """Routing decision for one question."""
+
     logs_needed: bool
     docs_needed: bool
-    is_quantitative: bool
-    is_qualitative: bool
-    time_range: Optional[Dict[str, str]] = None
-    index_hints: List[str] = []
+    is_quantitative: bool = False
+    index_hints: list[str] = []  # e.g. ["payments-*"]; first one is the service asked about
+    used_llm: bool = False
+
 
 class IntentClassifier:
-    def __init__(self, openai_client: Optional[AsyncOpenAI] = None, qdrant_client=None):
-        self.llm = openai_client
-        self.qdrant = qdrant_client
+    """Keyword rules first; the LLM is only asked when no rule matches."""
 
-        # Keywords
-        self.quantitative_patterns = [r"\bcount\b", r"\bhow many\b", r"\bsum\b", r"\baverage\b"]
-        self.docs_only_patterns = [r"\bbest practice\b", r"\bhow to\b", r"\barchitecture\b"]
-        self.troubleshooting_patterns = [r"\bwhy\b", r"\bfailed\b", r"\berror\b", r"\bcause\b"]
+    def __init__(self, services: list[str], llm: AsyncOpenAI | None = None, model: str = "") -> None:
+        self.services = services
+        self.llm = llm
+        self.model = model
 
-        try:
-            with open("src/prompts/intent.txt", "r") as f:
-                self.llm_prompt = f.read()
-        except FileNotFoundError:
-            try:
-                with open("prompts/intent.txt", "r") as f:
-                    self.llm_prompt = f.read()
-            except FileNotFoundError:
-                self.llm_prompt = "You are an intent classifier."
-    
-    async def classify(self, raw_text: str) -> IntentResult:
+    def find_services(self, text: str) -> list[str]:
         """
-        Classifies incoming queries across 3 performance-tiered stages:
-        1. Regex / Keyword fast path 
-        2. OATS Semantic similarity (Stubbed / prepared)
-        3. Local LLM invocation over JSON mode
+        Services named in the text, in the order they appear. "auth" matches
+        auth-service and "payment" matches payments.
         """
-        text_lower = raw_text.lower()
-        
-        # Regex
-        is_docs_strict = any(re.search(p, text_lower) for p in self.docs_only_patterns)
-        if is_docs_strict:
-            return IntentResult(
-                logs_needed=False, docs_needed=True, 
-                is_quantitative=False, is_qualitative=True
-            )
-            
-        is_quant = any(re.search(p, text_lower) for p in self.quantitative_patterns)
-        is_troubleshoot = any(re.search(p, text_lower) for p in self.troubleshooting_patterns)
-        
-        if is_quant and not is_troubleshoot:
-            return IntentResult(
-                logs_needed=True, docs_needed=False, 
-                is_quantitative=True, is_qualitative=False
-            )
-        
-        #  Qdrant to be added later
-        # if self.qdrant:
-        #    hits = await self.qdrant.semantic_search(raw_text, threshold=0.85)
-        #    if hits: return IntentResult(**hits[0].payload)
+        found: list[tuple[int, str]] = []
+        for service in self.services:
+            aliases = {service, service.split("-")[0].rstrip("s")}
+            positions = [m.start() for a in aliases for m in re.finditer(rf"\b{re.escape(a)}", text)]
+            if positions:
+                found.append((min(positions), service))
+        return [service for _, service in sorted(found)]
 
-        # LLM fallback
-        if self.llm:
-            return await self._llm_classify(raw_text)
-            
-        # Failsafe default if LLM client isn't passed during early testing
-        return IntentResult(
-            logs_needed=True, docs_needed=True, 
-            is_quantitative=False, is_qualitative=True
-        )
-    
-    async def _llm_classify(self, raw_text: str) -> IntentResult:
-        """Pings the local llama.cpp server and enforces the JSON output schema."""
-        response = await self.llm.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL_NAME", "llama3.2"),  # Default local llama model name
-            messages=[
-                {"role": "system", "content": self.llm_prompt},
-                {"role": "user", "content": raw_text}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.1
-        )
+    async def classify(self, text: str) -> IntentResult:
+        """Return an IntentResult for the question ``text``."""
+        lower = text.lower()
+        hints = [f"{s}-*" for s in self.find_services(lower)]
 
-        raw = response.choices[0].message.content.strip()
-        if raw.startswith("```json"): raw = raw[7:]
-        if raw.startswith("```"): raw = raw[3:]
-        if raw.endswith("```"): raw = raw[:-3]
-        data = json.loads(raw.strip())
-        return IntentResult(**data)
+        def has(pattern: str) -> bool:
+            return re.search(pattern, lower) is not None
+
+        if has(QUANTITATIVE) and not has(CAUSAL):
+            return IntentResult(logs_needed=True, docs_needed=False, is_quantitative=True, index_hints=hints)
+        if has(CAUSAL):
+            return IntentResult(logs_needed=True, docs_needed=True, index_hints=hints)
+        if has(DOCS) and not has(SYMPTOM):
+            return IntentResult(logs_needed=False, docs_needed=True, index_hints=hints)
+        if has(SYMPTOM):
+            return IntentResult(logs_needed=True, docs_needed=True, index_hints=hints)
+
+        if self.llm is not None:
+            data = await ask_json(self.llm, self.model, load_prompt("intent"), text)
+            return IntentResult(
+                logs_needed=bool(data.get("logs_needed", True)),
+                docs_needed=bool(data.get("docs_needed", True)),
+                is_quantitative=bool(data.get("is_quantitative", False)),
+                index_hints=hints,
+                used_llm=True,
+            )
+        # Unclear and no LLM: fetch both to be safe.
+        return IntentResult(logs_needed=True, docs_needed=True, index_hints=hints)

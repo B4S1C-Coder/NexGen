@@ -1,61 +1,41 @@
-import pytest
-import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
-from src.reasoner import ReasonerAgent, AcceptedHypothesis
-from src.context import RCASynthesisInput
+from src.reasoner import ReasonerAgent
 
-@pytest.fixture
-def dummy_context():
-    return RCASynthesisInput(
-        query_id="q1",
-        original_query="Test failure query",
-        log_evidence=[],
-        knowledge_context=[],
-        reasoning_trace=[]
-    )
+SERVICES = ["db-primary", "gateway", "notifications", "payments"]
 
-@pytest.mark.asyncio
-async def test_reasoner_mock_fallback(dummy_context):
-    reasoner = ReasonerAgent(openai_client=None)
-    results = await reasoner.reason(dummy_context)
-    
-    assert len(results) == 1
-    assert "Mock reasoned branch." in results[0].description
 
-@pytest.mark.asyncio
-async def test_tot_bfs_pruning_contradictions(dummy_context):
-    mock_client = AsyncMock()
-    
-    # We provide an LLM json response that mimics a set of hypotheses generated at depth 1.
-    # The BFS logic ensures contradictions >= 2 are dynamically pruned out.
-    payload = {
-        "hypotheses": [
-            {
-                "description": "Flawed Network hypothesis",
-                "contradictions": 3,
-                "supporting_evidence_count": 0,
-                "is_accepted": False
-            },
-            {
-                "description": "Clear DB hypothesis",
-                "contradictions": 0,
-                "supporting_evidence_count": 2,
-                "is_accepted": True
-            }
-        ]
-    }
-    
-    mock_message = AsyncMock()
-    mock_message.content = json.dumps(payload)
-    mock_choice = AsyncMock()
-    mock_choice.message = mock_message
-    mock_client.chat.completions.create.return_value = AsyncMock(choices=[mock_choice])
-    
-    reasoner = ReasonerAgent(openai_client=mock_client)
-    accepted = await reasoner.reason(dummy_context)
-    
-    # Assert correct pruning mechanism
-    assert len(accepted) == 1
-    assert accepted[0].description == "Clear DB hypothesis"
-    assert accepted[0].contradictions == 0
+async def test_rules_rank_by_first_problem_time(context):
+    ranked = await ReasonerAgent(SERVICES).reason(context, ["payments"])
+    assert [h.culprit_service for h in ranked] == ["notifications", "db-primary", "payments", "gateway"]
+    db = ranked[1]
+    assert db.symptom_service == "payments"
+    assert db.supporting_logs == 2  # its own log line + payments naming it
+
+
+async def test_tie_prefers_service_that_is_not_the_symptom(hit, context):
+    context.log_evidence = [hit("10:00:00", "payments", "ERROR", "Connection refused: db-primary:5432")]
+    ranked = await ReasonerAgent(SERVICES).reason(context, ["payments"])
+    assert ranked[0].culprit_service == "db-primary"
+
+
+async def test_symptom_defaults_to_noisiest_service(hit, context):
+    reasoner = ReasonerAgent(SERVICES)
+    assert reasoner.pick_symptom(context, []) in SERVICES
+    context.log_evidence.append(hit("09:58:00", "gateway", "ERROR", "again"))
+    assert reasoner.pick_symptom(context, []) == "gateway"
+
+
+async def test_llm_can_only_reorder_known_candidates(context):
+    reasoner = ReasonerAgent(SERVICES, llm=AsyncMock(), model="m")
+    reply = {"ranking": ["db-primary", "made-up-service", "payments"]}
+    with patch("src.reasoner.ask_json", AsyncMock(return_value=reply)):
+        ranked = await reasoner.reason(context, ["payments"])
+    assert [h.culprit_service for h in ranked] == ["db-primary", "payments", "notifications", "gateway"]
+
+
+async def test_llm_failure_keeps_rule_order(context):
+    reasoner = ReasonerAgent(SERVICES, llm=AsyncMock(), model="m")
+    with patch("src.reasoner.ask_json", AsyncMock(side_effect=ValueError("bad json"))):
+        ranked = await reasoner.reason(context, ["payments"])
+    assert ranked[0].culprit_service == "notifications"

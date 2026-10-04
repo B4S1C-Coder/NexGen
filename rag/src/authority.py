@@ -1,3 +1,5 @@
+import math
+
 from src.preprocessor import RankedChunk
 
 
@@ -16,8 +18,12 @@ class AuthorityScorer:
         scored_chunks: list[RankedChunk] = []
 
         for chunk in chunks:
-            # Base score from Cross-Encoder if available, otherwise fallback to standard WRRF score
-            base = chunk.cross_encoder_score if chunk.cross_encoder_score is not None else chunk.score
+            # Base relevance in (0, 1). Cross-encoder scores are raw logits (often negative), and
+            # multiplying a negative number by a boost > 1 would push it DOWN, so squash first.
+            if chunk.cross_encoder_score is not None:
+                base = 1.0 / (1.0 + math.exp(-chunk.cross_encoder_score))
+            else:
+                base = chunk.score  # WRRF score, already positive
 
             tier_boost = 1.25 if chunk.metadata.authority_tier == "A" else 1.0
             resolution_boost = 1.15 if chunk.metadata.is_accepted_answer else 1.0

@@ -1,66 +1,53 @@
-import os
+"""FastAPI entry point for the Master service (port 8000)."""
+
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 from typing import Any
 
-import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 
 from nexgen_shared.logging import configure_structlog, get_logger
-from nexgen_shared.schemas import RCAEvidenceItem, RCAReport, UserQuery
-from .settings import Settings
+from nexgen_shared.schemas import RCAReport, UserQuery
+
+from src.orchestrator import MasterOrchestrator
+from src.settings import Settings
+
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Build one orchestrator at startup and share it across requests."""
     settings = Settings()
-    app.state.settings = settings
-
-    configure_structlog(
-        log_level=settings.log_level,
-        json_format=False
+    configure_structlog(log_level=settings.log_level)
+    app.state.orchestrator = MasterOrchestrator(settings)
+    get_logger(service="master").info(
+        "startup", mock_services=settings.mock_services, llm_enabled=app.state.orchestrator.llm_enabled
     )
+    yield
 
-    app.state.log = get_logger(service="master", query_id=None)
-    app.state.log.info("startup", master_port=settings.master_port)
-    app.state.http = httpx.AsyncClient(timeout=settings.http_timeout_seconds)
-
-    try:
-        yield
-    finally:
-        await app.state.http.aclose()
-        app.state.log.info("shutdown")
 
 app = FastAPI(title="nexgen-master", lifespan=lifespan)
 
+
 @app.get("/health")
 async def health() -> dict[str, Any]:
-    return { "status": "ok", "service": "master" }
+    """Liveness check."""
+    return {"status": "ok", "service": "master"}
 
-@app.get("/session/{session_id}")
-async def get_session(session_id: str) -> dict[str, Any]:
-    # Redis backed manager would come here
-    return { "session_id": session_id, "history": [] }
 
 @app.post("/query", response_model=RCAReport)
-async def query(user_query: UserQuery) -> RCAReport:
-    log = get_logger(service="master", query_id=user_query.query_id)
+async def query(user_query: UserQuery, request: Request) -> RCAReport:
+    """Answer a question with a root-cause analysis report."""
+    orchestrator: MasterOrchestrator = request.app.state.orchestrator
+    return await orchestrator.execute_query(user_query)
 
-    # Downstream services would be called here
-    return RCAReport(
-        query_id=user_query.query_id,
-        root_cause_summary="Not yet implement (Phase 0).",
-        confidence=0.0,
-        evidence=[
-            RCAEvidenceItem(
-                type="system",
-                ref="master",
-                snippet="Phase 0. Downstream calls not wired yet."
-            )
-        ],
-        recommended_actions = ["Implement Master Orchestration pipeline."],
-        reasoning_trace_summary="No reasoning here (Phase 0).",
-        mttr_estimate_minutes=0,
-        generated_at=datetime.now(timezone.utc)
-    )
+
+@app.get("/session/{session_id}")
+async def get_session(session_id: str, request: Request) -> dict[str, Any]:
+    """Return the stored questions and messages of a session, or 404."""
+    orchestrator: MasterOrchestrator = request.app.state.orchestrator
+    state = await orchestrator.sessions.get(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+    return state.model_dump(mode="json")

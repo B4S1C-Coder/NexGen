@@ -332,3 +332,34 @@ def test_knowledge_pipeline_returns_reinjected_ids(mock_dense, mock_sparse, mock
     assert data["total_tokens_after_compression"] == len(
         data["chunks"][0]["content"].split()
     )
+
+
+@patch("src.main.LLMLingua2Compactor")
+@patch("src.main.ConflictDetector")
+@patch("src.main.CrossEncoderReranker")
+@patch("src.main.SparseRetriever")
+@patch("src.main.DenseRetriever")
+def test_knowledge_pipeline_keeps_each_chunk_source(mock_dense, mock_sparse, mock_reranker, mock_conflict, mock_compactor):
+    """Each retrieved document is compressed separately and keeps its own source_uri."""
+
+    chunks = [_make_chunk("db-runbook", "Fail over db-primary."), _make_chunk("auth-runbook", "Restart auth-service.")]
+
+    with TestClient(app) as client:
+        client.app.state.dense_retriever = AsyncMock()
+        client.app.state.dense_retriever.retrieve.return_value = chunks
+        client.app.state.sparse_retriever = AsyncMock()
+        client.app.state.sparse_retriever.retrieve.return_value = []
+        client.app.state.reranker = MagicMock()
+        client.app.state.reranker.rerank.side_effect = lambda q, c: c
+        client.app.state.conflict_detector = MagicMock()
+        client.app.state.conflict_detector.detect_conflicts.return_value = []
+        client.app.state.compactor = MagicMock()
+        client.app.state.compactor.compress.side_effect = lambda texts, budget_tokens: texts[0]
+        client.app.state.id_preservation = TechnicalIDPreservationLayer()
+
+        data = client.post("/knowledge", json=KNOWLEDGE_REQUEST).json()
+
+    assert [(c["source_uri"], c["content"]) for c in data["chunks"]] == [
+        ("uri://db-runbook", "Fail over db-primary."),
+        ("uri://auth-runbook", "Restart auth-service."),
+    ]

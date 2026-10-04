@@ -1,63 +1,33 @@
-import pytest
-import json
-from unittest.mock import AsyncMock
+from datetime import datetime, timezone
 
+from src.reasoner import Hypothesis
+from src.topology import Topology
 from src.validator import ValidatorAgent
-from src.reasoner import AcceptedHypothesis
-from src.context import RCASynthesisInput
-from nexgen_shared.errors import E008TopologyVerificationRejected
 
-@pytest.fixture
-def dummy_context():
-    return RCASynthesisInput(
-        query_id="q1", 
-        original_query="Test timeout payload", 
-        log_evidence=[], 
-        knowledge_context=[], 
-        reasoning_trace=[]
+
+def hypothesis(culprit: str, symptom: str = "payments", minute: int = 56) -> Hypothesis:
+    return Hypothesis(
+        culprit_service=culprit, symptom_service=symptom,
+        first_seen=datetime(2026, 9, 14, 9, minute, tzinfo=timezone.utc),
+        example_error="x", supporting_logs=1,
     )
 
-@pytest.mark.asyncio
-async def test_validator_knowledge_grounding_reject():
-    agent = ValidatorAgent(openai_client=None)
-    # Zero evidence support should outright reject immediately without LLM logic
-    hyp = AcceptedHypothesis(
-        id="h1", 
-        description="Hypothetical logic.", 
-        contradictions=0, 
-        supporting_evidence_count=0, 
-        is_accepted=True
-    )
-    is_valid = await agent.validate(hyp, None)
-    assert not is_valid
 
-@pytest.mark.asyncio
-async def test_validator_topology_edge_failure(dummy_context, tmp_path):
-    # Setup agent with mock graph topology isolating 'serviceA' natively
-    agent = ValidatorAgent(openai_client=AsyncMock())
-    agent.topology = {"serviceA": {"dependencies": ["serviceB"]}}
-    
-    # LLM extracts the assumption that Service A connected to isolated Service C 
-    payload = {
-        "is_valid": True,
-        "reason": "Logically sound.",
-        "extracted_edges": [["serviceA", "serviceC"]]
-    }
-    
-    mock_message = AsyncMock()
-    mock_message.content = json.dumps(payload)
-    agent.llm.chat.completions.create.return_value = AsyncMock(choices=[AsyncMock(message=mock_message)])
-    
-    hyp = AcceptedHypothesis(
-        id="h2", 
-        description="A logic assumes A -> C", 
-        contradictions=0, 
-        supporting_evidence_count=1, 
-        is_accepted=True
-    )
-    
-    # Assert pipeline stops cleanly and securely with deterministic Pydantic Error Type
-    with pytest.raises(E008TopologyVerificationRejected) as exc_info:
-        await agent.validate(hyp, dummy_context)
-        
-    assert "serviceA" in str(exc_info.value)
+def test_topology_rejects_unrelated_service_with_e008(topology, context):
+    verdict = ValidatorAgent(topology).validate(hypothesis("notifications", minute=30), context)
+    assert not verdict.accepted and "[E008]" in verdict.reason
+
+
+def test_timing_rejects_culprit_that_failed_after_symptom(topology, context):
+    verdict = ValidatorAgent(topology).validate(hypothesis("db-primary", minute=59), context)
+    assert not verdict.accepted and "after" in verdict.reason
+
+
+def test_grounding_rejects_culprit_missing_from_evidence(context):
+    topo = Topology({"payments": {"dependencies": ["ledger"]}})
+    verdict = ValidatorAgent(topo).validate(hypothesis("ledger"), context)
+    assert not verdict.accepted and "no log line or doc" in verdict.reason
+
+
+def test_valid_hypothesis_is_accepted(topology, context):
+    assert ValidatorAgent(topology).validate(hypothesis("db-primary"), context).accepted

@@ -34,13 +34,14 @@ class DenseRetriever:
         Returns:
             A list of RankedChunk objects representing the search hits.
         """
-        # 1. Embed query via Ollama/llama.cpp
-        embed_url = f"{self.settings.llamacpp_embed_server_url.rstrip('/')}/embedding"
-        payload = {"content": request.semantic_query}
+        # 1. Embed query with the same Ollama-compatible endpoint used at ingest time
+        # (vectors from different endpoints/models would not be comparable).
+        embed_url = f"{self.settings.llamacpp_embed_server_url.rstrip('/')}/api/embeddings"
+        payload = {"model": self.settings.embedding_model, "prompt": request.semantic_query}
         response = await self.http_client.post(embed_url, json=payload)
         response.raise_for_status()
-        
-        # llama.cpp server typically returns {"embedding": [float, ...]}
+
+        # Ollama returns {"embedding": [float, ...]}
         resp_data = response.json()
         query_vector = resp_data.get("embedding", [])
         if not query_vector:

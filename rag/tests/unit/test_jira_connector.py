@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, UTC
-from unittest.mock import AsyncMock, patch
-from rag.src.connectors.jira import JiraConnector
+from unittest.mock import MagicMock, patch
+from src.connectors.jira import JiraConnector
 
 @pytest.fixture
 def jira_connector():
@@ -17,7 +17,7 @@ async def test_jira_fetch_no_auth():
 @patch("httpx.AsyncClient.get")
 async def test_jira_fetch_issues(mock_get, jira_connector):
     # Mocking httpx response
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.raise_for_status.return_value = None
     mock_response.json.return_value = {
         "issues": [

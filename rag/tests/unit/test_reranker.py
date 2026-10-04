@@ -45,3 +45,23 @@ def test_rerank(mock_cross_encoder_class):
         ["exact query terms", "off-topic chunk"],
         ["exact query terms", "highly relevant exact query terms"],
     ]
+
+
+@patch("src.reranker.CrossEncoder")
+def test_relevance_cutoff_is_off_by_default_and_optional(mock_cross_encoder_class):
+    mock_cross_encoder_class.return_value.predict.return_value = [-9.0, 1.0]
+    meta = ChunkMetadata(
+        chunk_id="", doc_id="", source_type="runbook", source_uri="",
+        authority_tier="A", created_at=datetime.utcnow(), resolution_status="resolved",
+        is_accepted_answer=True, recency_score=1.0,
+    )
+    chunks = [
+        RankedChunk(chunk_id="low", content="a", metadata=meta, score=0.5),
+        RankedChunk(chunk_id="high", content="b", metadata=meta, score=0.4),
+    ]
+
+    default = CrossEncoderReranker(Settings(cross_encoder_model="dummy-model"))
+    assert [c.chunk_id for c in default.rerank("q", chunks)] == ["high", "low"]
+
+    with_cutoff = CrossEncoderReranker(Settings(cross_encoder_model="dummy-model", MIN_RELEVANCE_SCORE=-2.0))
+    assert [c.chunk_id for c in with_cutoff.rerank("q", chunks)] == ["high"]

@@ -1,0 +1,366 @@
+{
+  "description": "Hand-written synthetic incidents. kind: normal = clean failure chain; trap = earlier noise from a service the symptom does not depend on (topology-invalid); red_herring = earlier noise from a service the symptom does depend on (topology-valid). Log rows are [time UTC, service, level, message].",
+  "date": "2026-09-14",
+  "docs": {
+    "rb-db-failover": {"type": "runbook", "tier": "A", "uri": "confluence://runbooks/db-primary-failover", "content": "Runbook: db-primary connection failures. If services report connection refused to db-primary:5432, check postgres with systemctl status postgresql on db-primary. If the primary is down, promote db-replica-1 via ops-console and restart the payments and orders connection pools."},
+    "rb-db-disk": {"type": "runbook", "tier": "A", "uri": "confluence://runbooks/db-primary-disk-full", "content": "Runbook: db-primary disk full. When postgres logs No space left on device, remove old WAL archives with pg_archivecleanup. Then expand the data volume; writes resume once usage is below 85%."},
+    "rb-app-disk": {"type": "runbook", "tier": "A", "uri": "confluence://runbooks/app-disk-full", "content": "Runbook: application disk full. If a service such as payments logs No space left on device for its local volume, delete files older than 30 days under /data. Then expand the volume and alert the service owner."},
+    "rb-auth-latency": {"type": "runbook", "tier": "A", "uri": "confluence://runbooks/auth-service-latency", "content": "Runbook: auth-service slow token validation. Gateway 504s on login usually mean auth-service workers are saturated or paused. Restart the stuck auth-service pods. Scale auth-service to 4 replicas and check heap usage."},
+    "rb-redis-oom": {"type": "runbook", "tier": "A", "uri": "confluence://runbooks/redis-cache-oom", "content": "Runbook: redis-cache out of memory. OOM command not allowed means redis-cache reached maxmemory. Set the eviction policy to allkeys-lru and raise maxmemory. Flush session keys only if on-call approves."},
+    "rb-deploy-rollback": {"type": "runbook", "tier": "A", "uri": "confluence://runbooks/deploy-rollback", "content": "Runbook: bad deployment. If errors start right after a deploy event, roll back with deployctl rollback for the affected service. Open an incident ticket and tag the release owner."},
+    "rb-rate-limit": {"type": "runbook", "tier": "A", "uri": "confluence://runbooks/auth-service-quota", "content": "Runbook: auth-service token quota (HTTP 429). When auth-service returns 429 Too Many Requests, the per-client token quota is exhausted. Raise rate_limit.per_client in the auth-service config. Ask the calling team to batch token checks."},
+    "rb-gateway-ratelimit": {"type": "runbook", "tier": "A", "uri": "confluence://runbooks/gateway-rate-limit", "content": "Runbook: gateway global rate limit. If gateway rejects many requests with 429, check rate_limit.global in the gateway config; the production value is 500rps. Revert a bad config with configctl rollback gateway."},
+    "doc-node-sizing": {"type": "guide", "tier": "A", "uri": "confluence://guides/inventory-node-sizing", "content": "Guide: inventory node sizing. Inventory pods need 2 vCPU and 4 GiB of memory. Scale horizontally above 300 requests per second."},
+    "doc-notifications": {"type": "slack", "tier": "B", "uri": "slack://ops/notifications-retries", "content": "Thread: notifications email retries. notifications retries SMTP delivery 5 times with exponential backoff. Failed emails go to the dead-letter queue."},
+    "doc-gateway-tls": {"type": "guide", "tier": "A", "uri": "confluence://guides/gateway-tls", "content": "Guide: gateway TLS certificates. gateway certificates renew automatically 30 days before expiry via cert-manager. Manual renewal is only needed if cert-manager is down."}
+  },
+  "scenarios": [
+    {
+      "id": "db-01", "type": "db_down", "kind": "normal", "expected_culprit": "db-primary",
+      "question": "Why is payments returning HTTP 500 errors?",
+      "docs": ["rb-db-failover", "doc-gateway-tls"],
+      "logs": [
+        ["09:50:00", "gateway", "INFO", "GET /api/checkout 200 in 85ms"],
+        ["09:52:10", "payments", "INFO", "Processed payment batch of 120 transactions"],
+        ["09:56:58", "db-primary", "ERROR", "FATAL: the database system is shutting down"],
+        ["09:57:01", "payments", "ERROR", "Connection refused: db-primary:5432"],
+        ["09:57:02", "payments", "ERROR", "Connection refused: db-primary:5432"],
+        ["09:57:03", "gateway", "ERROR", "POST /api/pay upstream payments returned 500"],
+        ["09:57:04", "payments", "ERROR", "Connection refused: db-primary:5432"],
+        ["09:57:05", "gateway", "ERROR", "POST /api/pay upstream payments returned 500"],
+        ["09:57:10", "orders", "ERROR", "Connection refused: db-primary:5432"],
+        ["09:57:30", "payments", "ERROR", "Connection pool exhausted, 0 of 20 connections available"],
+        ["09:58:00", "gateway", "INFO", "Health check passed"]
+      ]
+    },
+    {
+      "id": "db-02", "type": "db_down", "kind": "normal", "expected_culprit": "db-primary",
+      "question": "Orders API is failing since 14:05, what happened?",
+      "docs": ["rb-db-failover", "doc-node-sizing"],
+      "logs": [
+        ["14:00:12", "orders", "INFO", "Order 88123 created"],
+        ["14:04:55", "db-primary", "WARN", "checkpoints are occurring too frequently (12 seconds apart)"],
+        ["14:05:02", "db-primary", "ERROR", "could not accept connection: too many clients already"],
+        ["14:05:03", "orders", "ERROR", "FATAL: sorry, too many clients already (db-primary)"],
+        ["14:05:04", "orders", "ERROR", "Failed to persist order 88130: db-primary unavailable"],
+        ["14:05:06", "gateway", "ERROR", "POST /api/orders upstream orders returned 503"],
+        ["14:05:07", "orders", "ERROR", "Failed to persist order 88131: db-primary unavailable"],
+        ["14:05:09", "inventory", "ERROR", "Stock reservation failed: db-primary connection timeout"],
+        ["14:05:20", "gateway", "ERROR", "POST /api/orders upstream orders returned 503"],
+        ["14:06:00", "orders", "INFO", "Retrying failed writes (attempt 2/3)"]
+      ]
+    },
+    {
+      "id": "db-03", "type": "db_down", "kind": "trap", "expected_culprit": "db-primary",
+      "question": "Why is the payments service throwing 500s?",
+      "docs": ["rb-db-failover", "doc-notifications"],
+      "logs": [
+        ["09:30:05", "notifications", "ERROR", "SMTP send failed: 421 Service not available (smtp.mailhost)"],
+        ["09:30:35", "notifications", "ERROR", "SMTP send failed: 421 Service not available (smtp.mailhost)"],
+        ["09:31:05", "notifications", "WARN", "Email moved to dead-letter queue after 5 retries"],
+        ["09:40:00", "payments", "INFO", "Processed payment batch of 98 transactions"],
+        ["09:44:12", "db-primary", "ERROR", "PANIC: could not write to file pg_wal/000000010000: Input/output error"],
+        ["09:44:13", "payments", "ERROR", "Connection refused: db-primary:5432"],
+        ["09:44:14", "payments", "ERROR", "Connection refused: db-primary:5432"],
+        ["09:44:15", "gateway", "ERROR", "POST /api/pay upstream payments returned 500"],
+        ["09:44:20", "payments", "ERROR", "Transaction rollback: lost connection to db-primary"],
+        ["09:45:00", "notifications", "ERROR", "SMTP send failed: 421 Service not available (smtp.mailhost)"]
+      ]
+    },
+    {
+      "id": "db-04", "type": "db_down", "kind": "red_herring", "expected_culprit": "db-primary",
+      "question": "The gateway is returning 502s on checkout, find the root cause.",
+      "docs": ["rb-db-failover", "doc-gateway-tls"],
+      "logs": [
+        ["10:10:00", "redis-cache", "WARN", "Slow log: GET session:8812 took 140ms"],
+        ["10:10:30", "redis-cache", "WARN", "Slow log: GET session:9120 took 155ms"],
+        ["10:12:00", "auth-service", "INFO", "Token issued for client web-app"],
+        ["10:15:40", "db-primary", "ERROR", "FATAL: terminating connection due to administrator command"],
+        ["10:15:41", "payments", "ERROR", "Connection refused: db-primary:5432"],
+        ["10:15:41", "orders", "ERROR", "Connection refused: db-primary:5432"],
+        ["10:15:42", "gateway", "ERROR", "POST /api/checkout upstream payments returned 502"],
+        ["10:15:43", "payments", "ERROR", "Connection refused: db-primary:5432"],
+        ["10:15:44", "gateway", "ERROR", "POST /api/checkout upstream payments returned 502"],
+        ["10:16:10", "gateway", "ERROR", "POST /api/checkout upstream orders returned 502"]
+      ]
+    },
+    {
+      "id": "auth-01", "type": "auth_timeout", "kind": "normal", "expected_culprit": "auth-service",
+      "question": "Why are users getting 504 timeouts when logging in through the gateway?",
+      "docs": ["rb-auth-latency", "doc-gateway-tls"],
+      "logs": [
+        ["08:20:00", "gateway", "INFO", "POST /api/login 200 in 120ms"],
+        ["08:24:31", "auth-service", "WARN", "Token validation p99 latency 4.8s exceeds 1s SLO"],
+        ["08:24:45", "auth-service", "ERROR", "Worker pool saturated: 64/64 threads busy"],
+        ["08:24:50", "gateway", "ERROR", "POST /api/login upstream auth-service timed out after 5000ms"],
+        ["08:24:52", "gateway", "ERROR", "POST /api/login upstream auth-service timed out after 5000ms"],
+        ["08:24:55", "payments", "ERROR", "Token check failed: auth-service request timeout"],
+        ["08:25:00", "gateway", "ERROR", "POST /api/login upstream auth-service timed out after 5000ms"],
+        ["08:25:30", "auth-service", "ERROR", "Worker pool saturated: 64/64 threads busy"]
+      ]
+    },
+    {
+      "id": "auth-02", "type": "auth_timeout", "kind": "normal", "expected_culprit": "auth-service",
+      "question": "payments requests are timing out, can you investigate?",
+      "docs": ["rb-auth-latency", "doc-node-sizing"],
+      "logs": [
+        ["13:00:00", "payments", "INFO", "Processed payment batch of 140 transactions"],
+        ["13:02:10", "auth-service", "ERROR", "GC pause of 3200ms detected, heap usage 97%"],
+        ["13:02:12", "payments", "ERROR", "Call to auth-service /validate timed out after 3000ms"],
+        ["13:02:14", "payments", "ERROR", "Call to auth-service /validate timed out after 3000ms"],
+        ["13:02:15", "gateway", "ERROR", "POST /api/pay upstream payments returned 504"],
+        ["13:02:20", "auth-service", "ERROR", "GC pause of 2900ms detected, heap usage 98%"],
+        ["13:02:25", "payments", "ERROR", "Call to auth-service /validate timed out after 3000ms"],
+        ["13:03:00", "gateway", "ERROR", "POST /api/pay upstream payments returned 504"]
+      ]
+    },
+    {
+      "id": "auth-03", "type": "auth_timeout", "kind": "trap", "expected_culprit": "auth-service",
+      "question": "Why is auth-service responding so slowly?",
+      "docs": ["rb-auth-latency", "doc-node-sizing"],
+      "logs": [
+        ["11:00:05", "inventory", "ERROR", "Stock sync job failed: upstream supplier API returned 503"],
+        ["11:00:35", "inventory", "ERROR", "Stock sync job failed: upstream supplier API returned 503"],
+        ["11:01:00", "orders", "WARN", "Inventory sync lag is 300s"],
+        ["11:05:00", "auth-service", "INFO", "Token issued for client mobile-app"],
+        ["11:08:20", "auth-service", "ERROR", "Thread pool exhausted: 128/128 workers busy, queueing requests"],
+        ["11:08:22", "auth-service", "WARN", "Token validation p99 latency 6.1s exceeds 1s SLO"],
+        ["11:08:25", "gateway", "ERROR", "POST /api/login upstream auth-service timed out after 5000ms"],
+        ["11:08:30", "auth-service", "ERROR", "Thread pool exhausted: 128/128 workers busy, queueing requests"],
+        ["11:08:40", "payments", "ERROR", "Call to auth-service /validate timed out after 3000ms"]
+      ]
+    },
+    {
+      "id": "auth-04", "type": "auth_timeout", "kind": "red_herring", "expected_culprit": "auth-service",
+      "question": "Login through the gateway is failing with timeouts, why?",
+      "docs": ["rb-auth-latency", "doc-gateway-tls"],
+      "logs": [
+        ["16:30:00", "db-primary", "WARN", "autovacuum: table sessions took 45s"],
+        ["16:31:00", "db-primary", "WARN", "autovacuum: table tokens took 38s"],
+        ["16:40:10", "auth-service", "ERROR", "Deadlock in token cache refresh, workers blocked"],
+        ["16:40:15", "gateway", "ERROR", "POST /api/login upstream auth-service timed out after 5000ms"],
+        ["16:40:16", "gateway", "ERROR", "POST /api/login upstream auth-service timed out after 5000ms"],
+        ["16:40:30", "auth-service", "ERROR", "Deadlock in token cache refresh, workers blocked"],
+        ["16:40:31", "payments", "ERROR", "Token check failed: auth-service request timeout"]
+      ]
+    },
+    {
+      "id": "cache-01", "type": "cache_oom", "kind": "normal", "expected_culprit": "redis-cache",
+      "question": "Why is auth-service failing to create sessions?",
+      "docs": ["rb-redis-oom", "doc-notifications"],
+      "logs": [
+        ["07:10:00", "auth-service", "INFO", "Session created for user 4411"],
+        ["07:14:02", "redis-cache", "WARN", "used_memory 3.9GB is 98% of maxmemory 4GB"],
+        ["07:14:20", "redis-cache", "ERROR", "OOM command not allowed when used memory > 'maxmemory'"],
+        ["07:14:21", "auth-service", "ERROR", "Failed to store session in redis-cache: OOM command not allowed"],
+        ["07:14:23", "auth-service", "ERROR", "Failed to store session in redis-cache: OOM command not allowed"],
+        ["07:14:25", "gateway", "ERROR", "POST /api/login upstream auth-service returned 500"],
+        ["07:14:40", "auth-service", "ERROR", "Failed to store session in redis-cache: OOM command not allowed"]
+      ]
+    },
+    {
+      "id": "cache-02", "type": "cache_oom", "kind": "normal", "expected_culprit": "redis-cache",
+      "question": "inventory lookups are erroring out, what's the root cause?",
+      "docs": ["rb-redis-oom", "doc-node-sizing"],
+      "logs": [
+        ["12:20:00", "inventory", "INFO", "Cache hit ratio 0.93"],
+        ["12:22:45", "redis-cache", "ERROR", "Can't save in background: fork: Cannot allocate memory"],
+        ["12:22:50", "redis-cache", "ERROR", "OOM command not allowed when used memory > 'maxmemory'"],
+        ["12:22:51", "inventory", "ERROR", "Cache write failed (redis-cache OOM), falling back to db-primary"],
+        ["12:22:52", "inventory", "WARN", "db-primary query latency 2.3s for stock lookup"],
+        ["12:22:55", "orders", "ERROR", "Inventory check failed: upstream inventory returned 500"],
+        ["12:23:10", "inventory", "ERROR", "Stock lookup failed: timeout after fallback to db-primary"]
+      ]
+    },
+    {
+      "id": "cache-03", "type": "cache_oom", "kind": "trap", "expected_culprit": "redis-cache",
+      "question": "Why are auth-service logins failing?",
+      "docs": ["rb-redis-oom", "doc-gateway-tls"],
+      "logs": [
+        ["07:50:00", "orders", "ERROR", "Payment webhook signature mismatch for order 77120"],
+        ["07:50:40", "orders", "ERROR", "Payment webhook signature mismatch for order 77121"],
+        ["07:51:00", "gateway", "WARN", "TLS certificate for api.example.com expires in 20 days"],
+        ["07:55:10", "redis-cache", "ERROR", "OOM command not allowed when used memory > 'maxmemory'"],
+        ["07:55:11", "auth-service", "ERROR", "Failed to store session in redis-cache: OOM command not allowed"],
+        ["07:55:12", "auth-service", "ERROR", "Login failed for user 9921: session store unavailable"],
+        ["07:55:20", "gateway", "ERROR", "POST /api/login upstream auth-service returned 500"]
+      ]
+    },
+    {
+      "id": "cache-04", "type": "cache_oom", "kind": "red_herring", "expected_culprit": "redis-cache",
+      "question": "Why are logins on the gateway failing with 500s?",
+      "docs": ["rb-redis-oom", "doc-node-sizing"],
+      "logs": [
+        ["18:00:00", "payments", "WARN", "Payment provider latency 1.2s above 1s threshold"],
+        ["18:01:30", "payments", "WARN", "Payment provider latency 1.4s above 1s threshold"],
+        ["18:05:00", "redis-cache", "ERROR", "OOM command not allowed when used memory > 'maxmemory'"],
+        ["18:05:01", "auth-service", "ERROR", "Failed to store session in redis-cache: OOM command not allowed"],
+        ["18:05:03", "gateway", "ERROR", "POST /api/login upstream auth-service returned 500"],
+        ["18:05:05", "auth-service", "ERROR", "Failed to store session in redis-cache: OOM command not allowed"],
+        ["18:05:06", "gateway", "ERROR", "POST /api/login upstream auth-service returned 500"]
+      ]
+    },
+    {
+      "id": "disk-01", "type": "disk_full", "kind": "normal", "expected_culprit": "db-primary",
+      "question": "Why can't orders be saved right now?",
+      "docs": ["rb-db-disk", "doc-notifications"],
+      "logs": [
+        ["03:10:00", "db-primary", "WARN", "Disk usage on /var/lib/postgresql is 96%"],
+        ["03:12:30", "db-primary", "ERROR", "could not extend file base/16384/2619: No space left on device"],
+        ["03:12:31", "orders", "ERROR", "Insert into orders failed: db-primary error 53100 disk full"],
+        ["03:12:33", "orders", "ERROR", "Insert into orders failed: db-primary error 53100 disk full"],
+        ["03:12:35", "gateway", "ERROR", "POST /api/orders upstream orders returned 500"],
+        ["03:12:40", "payments", "ERROR", "Insert into ledger failed: db-primary error 53100 disk full"]
+      ]
+    },
+    {
+      "id": "disk-02", "type": "disk_full", "kind": "normal", "expected_culprit": "payments",
+      "question": "payments is throwing errors when writing receipts, why?",
+      "docs": ["rb-app-disk", "doc-gateway-tls"],
+      "logs": [
+        ["05:00:00", "payments", "INFO", "Receipt archive rotated"],
+        ["05:20:15", "payments", "WARN", "Disk usage on /data/receipts is 95%"],
+        ["05:31:02", "payments", "ERROR", "IOException: No space left on device writing /data/receipts/r-55120.pdf"],
+        ["05:31:05", "payments", "ERROR", "IOException: No space left on device writing /data/receipts/r-55121.pdf"],
+        ["05:31:06", "gateway", "ERROR", "POST /api/pay upstream payments returned 500"],
+        ["05:31:20", "payments", "ERROR", "IOException: No space left on device writing /data/receipts/r-55122.pdf"]
+      ]
+    },
+    {
+      "id": "disk-03", "type": "disk_full", "kind": "trap", "expected_culprit": "db-primary",
+      "question": "Why is the database rejecting writes from payments?",
+      "docs": ["rb-db-disk", "doc-notifications"],
+      "logs": [
+        ["02:00:10", "notifications", "ERROR", "Push provider returned 401 Unauthorized, check API key"],
+        ["02:00:40", "notifications", "ERROR", "Push provider returned 401 Unauthorized, check API key"],
+        ["02:05:00", "inventory", "WARN", "Stock sync lag 120s"],
+        ["02:14:30", "db-primary", "ERROR", "could not write to file pg_wal/xlogtemp.552: No space left on device"],
+        ["02:14:31", "payments", "ERROR", "Insert into ledger failed: db-primary error 53100 disk full"],
+        ["02:14:32", "payments", "ERROR", "Insert into ledger failed: db-primary error 53100 disk full"],
+        ["02:14:35", "gateway", "ERROR", "POST /api/pay upstream payments returned 500"]
+      ]
+    },
+    {
+      "id": "disk-04", "type": "disk_full", "kind": "red_herring", "expected_culprit": "db-primary",
+      "question": "Checkout is failing, can you find out why?",
+      "docs": ["rb-db-disk", "doc-gateway-tls"],
+      "logs": [
+        ["04:00:00", "auth-service", "WARN", "Token cache hit ratio dropped to 0.71"],
+        ["04:02:00", "redis-cache", "WARN", "Slow log: SCAN took 230ms"],
+        ["04:10:05", "db-primary", "ERROR", "could not extend file base/16384/3001: No space left on device"],
+        ["04:10:06", "orders", "ERROR", "Insert into orders failed: db-primary error 53100 disk full"],
+        ["04:10:07", "payments", "ERROR", "Insert into ledger failed: db-primary error 53100 disk full"],
+        ["04:10:08", "gateway", "ERROR", "POST /api/checkout upstream orders returned 500"],
+        ["04:10:09", "gateway", "ERROR", "POST /api/checkout upstream payments returned 500"],
+        ["04:10:10", "orders", "ERROR", "Insert into orders failed: db-primary error 53100 disk full"],
+        ["04:10:12", "gateway", "ERROR", "POST /api/checkout upstream orders returned 500"]
+      ]
+    },
+    {
+      "id": "deploy-01", "type": "bad_deploy", "kind": "normal", "expected_culprit": "payments",
+      "question": "Why did payments start failing after 15:00?",
+      "docs": ["rb-deploy-rollback", "doc-node-sizing"],
+      "logs": [
+        ["14:58:00", "payments", "INFO", "Deploy started: payments v2.4.1 (previous v2.4.0)"],
+        ["14:59:30", "payments", "INFO", "Deploy finished: payments v2.4.1"],
+        ["15:00:12", "payments", "ERROR", "NullPointerException at PaymentService.applyDiscount(PaymentService.java:212)"],
+        ["15:00:13", "gateway", "ERROR", "POST /api/pay upstream payments returned 500"],
+        ["15:00:15", "payments", "ERROR", "NullPointerException at PaymentService.applyDiscount(PaymentService.java:212)"],
+        ["15:00:20", "gateway", "ERROR", "POST /api/pay upstream payments returned 500"]
+      ]
+    },
+    {
+      "id": "deploy-02", "type": "bad_deploy", "kind": "normal", "expected_culprit": "inventory",
+      "question": "inventory is returning errors since the last release, why?",
+      "docs": ["rb-deploy-rollback", "doc-notifications"],
+      "logs": [
+        ["09:00:00", "inventory", "INFO", "Deploy finished: inventory v3.1.0 (config: stock_cache_ttl=0)"],
+        ["09:01:10", "inventory", "ERROR", "Config validation failed: stock_cache_ttl must be > 0"],
+        ["09:01:11", "inventory", "ERROR", "Stock lookup failed: cache disabled by invalid config"],
+        ["09:01:12", "orders", "ERROR", "Inventory check failed: upstream inventory returned 500"],
+        ["09:01:20", "inventory", "ERROR", "Stock lookup failed: cache disabled by invalid config"],
+        ["09:01:25", "gateway", "ERROR", "POST /api/orders upstream orders returned 500"]
+      ]
+    },
+    {
+      "id": "deploy-03", "type": "bad_deploy", "kind": "trap", "expected_culprit": "orders",
+      "question": "orders is failing after today's deploy, what's wrong?",
+      "docs": ["rb-deploy-rollback", "doc-notifications"],
+      "logs": [
+        ["11:20:00", "notifications", "ERROR", "Template 'order_shipped' missing variable 'tracking_url'"],
+        ["11:20:30", "gateway", "WARN", "Rate of 4xx responses from client mobile-app is 12%"],
+        ["11:25:00", "orders", "INFO", "Deploy finished: orders v5.0.0"],
+        ["11:25:40", "orders", "ERROR", "Schema mismatch: column 'discount_code' does not exist in table orders"],
+        ["11:25:41", "orders", "ERROR", "Failed to persist order 99100: schema mismatch"],
+        ["11:25:43", "gateway", "ERROR", "POST /api/orders upstream orders returned 500"],
+        ["11:25:50", "orders", "ERROR", "Failed to persist order 99101: schema mismatch"]
+      ]
+    },
+    {
+      "id": "deploy-04", "type": "bad_deploy", "kind": "red_herring", "expected_culprit": "payments",
+      "question": "Why are gateway requests to payments failing?",
+      "docs": ["rb-deploy-rollback", "doc-gateway-tls"],
+      "logs": [
+        ["17:00:00", "redis-cache", "WARN", "Evicted 12000 keys in last minute (maxmemory policy)"],
+        ["17:03:00", "auth-service", "WARN", "Token validation p99 latency 1.3s exceeds 1s SLO"],
+        ["17:10:00", "payments", "INFO", "Deploy finished: payments v2.5.0"],
+        ["17:10:30", "payments", "ERROR", "ClassCastException in RefundHandler.process (RefundHandler.java:88)"],
+        ["17:10:31", "gateway", "ERROR", "POST /api/refund upstream payments returned 500"],
+        ["17:10:35", "payments", "ERROR", "ClassCastException in RefundHandler.process (RefundHandler.java:88)"],
+        ["17:10:40", "gateway", "ERROR", "POST /api/refund upstream payments returned 500"]
+      ]
+    },
+    {
+      "id": "rate-01", "type": "rate_limit", "kind": "normal", "expected_culprit": "auth-service",
+      "question": "Why is payments getting 429 errors?",
+      "docs": ["rb-rate-limit", "doc-node-sizing"],
+      "logs": [
+        ["10:00:00", "payments", "INFO", "Processed payment batch of 150 transactions"],
+        ["10:05:20", "auth-service", "WARN", "Client payments exceeded token quota (1000/min)"],
+        ["10:05:21", "payments", "ERROR", "auth-service /validate returned 429 Too Many Requests"],
+        ["10:05:22", "payments", "ERROR", "auth-service /validate returned 429 Too Many Requests"],
+        ["10:05:23", "gateway", "ERROR", "POST /api/pay upstream payments returned 503"],
+        ["10:05:30", "payments", "ERROR", "auth-service /validate returned 429 Too Many Requests"]
+      ]
+    },
+    {
+      "id": "rate-02", "type": "rate_limit", "kind": "normal", "expected_culprit": "gateway",
+      "question": "gateway is rejecting a lot of requests with 429, why?",
+      "docs": ["rb-gateway-ratelimit", "doc-notifications"],
+      "logs": [
+        ["12:00:00", "gateway", "INFO", "Config reloaded: rate_limit.global=50rps (was 500rps)"],
+        ["12:00:05", "gateway", "WARN", "Global rate limit 50rps reached, rejecting requests"],
+        ["12:00:06", "gateway", "ERROR", "429 Too Many Requests returned to client web-app"],
+        ["12:00:07", "gateway", "ERROR", "429 Too Many Requests returned to client mobile-app"],
+        ["12:00:30", "orders", "INFO", "Order 66120 created"],
+        ["12:01:00", "gateway", "ERROR", "429 Too Many Requests returned to client web-app"]
+      ]
+    },
+    {
+      "id": "rate-03", "type": "rate_limit", "kind": "trap", "expected_culprit": "auth-service",
+      "question": "orders keeps failing with 429 responses, what is going on?",
+      "docs": ["rb-rate-limit", "doc-notifications"],
+      "logs": [
+        ["08:00:00", "notifications", "ERROR", "SMTP send failed: 452 too many recipients"],
+        ["08:00:20", "gateway", "WARN", "Upstream keepalive connections at 90% of limit"],
+        ["08:06:10", "auth-service", "WARN", "Client payments exceeded token quota (1000/min)"],
+        ["08:06:11", "payments", "ERROR", "auth-service /validate returned 429 Too Many Requests"],
+        ["08:06:12", "orders", "ERROR", "Charge failed: upstream payments returned 429"],
+        ["08:06:13", "orders", "ERROR", "Charge failed: upstream payments returned 429"],
+        ["08:06:20", "payments", "ERROR", "auth-service /validate returned 429 Too Many Requests"]
+      ]
+    },
+    {
+      "id": "rate-04", "type": "rate_limit", "kind": "red_herring", "expected_culprit": "auth-service",
+      "question": "Why are payments failing with rate limit errors?",
+      "docs": ["rb-rate-limit", "doc-gateway-tls"],
+      "logs": [
+        ["19:00:00", "redis-cache", "WARN", "Slow log: GET token:client:payments took 180ms"],
+        ["19:08:00", "auth-service", "WARN", "Client payments exceeded token quota (1000/min)"],
+        ["19:08:01", "payments", "ERROR", "auth-service /validate returned 429 Too Many Requests"],
+        ["19:08:02", "gateway", "ERROR", "POST /api/pay upstream payments returned 503"],
+        ["19:08:05", "payments", "ERROR", "auth-service /validate returned 429 Too Many Requests"]
+      ]
+    }
+  ]
+}

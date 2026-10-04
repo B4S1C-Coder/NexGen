@@ -74,3 +74,16 @@ def test_authority_scoring():
     assert scored[1].score == 11.5
     assert scored[2].score == 10.0
     assert scored[3].score == 3.75
+
+
+def test_boost_still_helps_when_cross_encoder_score_is_negative():
+    """Same negative cross-encoder logit: the tier-A doc must rank ABOVE the tier-B doc."""
+    tier_a = RankedChunk(chunk_id="a", content="", metadata=_mock_metadata("A", "resolved", False),
+                         score=0.01, cross_encoder_score=-8.0)
+    tier_b = RankedChunk(chunk_id="b", content="", metadata=_mock_metadata("B", "resolved", False),
+                         score=0.01, cross_encoder_score=-8.0)
+
+    scored = AuthorityScorer().score([tier_b, tier_a])
+
+    assert [c.chunk_id for c in scored] == ["a", "b"]
+    assert all(0 < c.score < 1 for c in scored)

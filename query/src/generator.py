@@ -7,8 +7,6 @@ language query. Returns a raw Kibana KQL string.
 The OpenAI-compatible SDK is used so switching to another provider
 (fine-tuned model, OpenAI, Together AI) requires only changing
 GROQ_BASE_URL and GROQ_MODEL in .env — no code changes.
-
-Defined in TASKS.md P2-Q2.
 """
 
 from __future__ import annotations

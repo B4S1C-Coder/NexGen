@@ -1,78 +1,36 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# master/ directory, so files resolve the same no matter where the process starts.
+MASTER_DIR = Path(__file__).resolve().parent.parent
+
+
 class Settings(BaseSettings):
-    """Master service configuration loaded from environment."""
+    """Master service configuration, read from environment variables or master/.env."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore"
+        env_file=MASTER_DIR / ".env", env_file_encoding="utf-8", extra="ignore"
     )
-    
+
     master_port: int = Field(default=8000, validation_alias="MASTER_PORT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
 
-    query_service: str = Field(
-        default="http://localhost:8001",
-        validation_alias="QUERY_SERVICE_URL"
-    )
-    rag_service_url: str = Field(
-        default="http://localhost:8002",
-        validation_alias="RAG_SERVICE_URL"
-    )
-    redis_url: str = Field(
-        default="redis://localhost:6379",
-        validation_alias="REDIS_URL"
-    )
+    # Downstream services. With MOCK_SERVICES=true, data/scenarios.json is used instead.
+    query_service_url: str = Field(default="http://localhost:8001", validation_alias="QUERY_SERVICE_URL")
+    rag_service_url: str = Field(default="http://localhost:8002", validation_alias="RAG_SERVICE_URL")
+    mock_services: bool = Field(default=False, validation_alias="MOCK_SERVICES")
+    http_timeout_seconds: float = Field(default=30.0, validation_alias="HTTP_TIMEOUT_SECONDS")
 
-    http_timeout_seconds: float = Field(
-        default=30.0,
-        validation_alias="HTTP_TIMEOUT_SECONDS"
-    )
+    # Any OpenAI-compatible endpoint (Groq, OpenAI, Ollama, llama.cpp). Empty key = rules only.
+    openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")
+    openai_base_url: str = Field(default="https://api.groq.com/openai/v1", validation_alias="OPENAI_BASE_URL")
+    openai_model_name: str = Field(default="openai/gpt-oss-20b", validation_alias="OPENAI_MODEL_NAME")
 
-    # LLM (served by llama.cpp)
-    llamacpp_server_url: str = Field(
-        default="http://localhost:8080",
-        validation_alias="LLAMACPP_SERVER_URL",
-    )
-    master_llm_model: str = Field(
-        default="qwen-3.5_4B_Q4_K_M",
-        validation_alias="MASTER_LLM_MODEL",
-    )
-    master_llm_temperature: float = Field(
-        default=0.2,
-        validation_alias="MASTER_LLM_TEMPERATURE",
-    )
-    master_llm_max_tokens: int = Field(
-        default=2048,
-        validation_alias="MASTER_LLM_MAX_TOKENS",
-    )
-
-    # Session / orchestration
-    session_ttl_seconds: int = Field(
-        default=7200,
-        validation_alias="SESSION_TTL_SECONDS",
-    )
-    max_dag_iterations: int = Field(
-        default=3,
-        validation_alias="MAX_DAG_ITERATIONS",
-    )
-    max_tot_branches: int = Field(
-        default=3,
-        validation_alias="MAX_TOT_BRANCHES",
-    )
-    max_validator_cycles: int = Field(
-        default=3,
-        validation_alias="MAX_VALIDATOR_CYCLES",
-    )
-    max_synthesis_tokens: int = Field(
-        default=6000,
-        validation_alias="MAX_SYNTHESIS_TOKENS",
-    )
-    topology_config_path: str = Field(
-        default="config/topology.json",
-        validation_alias="TOPOLOGY_CONFIG_PATH",
-    )
+    redis_url: str = Field(default="redis://localhost:6379/0", validation_alias="REDIS_URL")
+    session_ttl_seconds: int = Field(default=7200, validation_alias="SESSION_TTL_SECONDS")
+    max_synthesis_tokens: int = Field(default=6000, validation_alias="MAX_SYNTHESIS_TOKENS")
+    topology_path: Path = Field(default=MASTER_DIR / "config" / "topology.json", validation_alias="TOPOLOGY_CONFIG_PATH")

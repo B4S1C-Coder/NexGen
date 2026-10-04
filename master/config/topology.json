@@ -1,8 +1,10 @@
 {
-  "payments": {
-    "dependencies": ["db-primary", "auth-service"]
-  },
-  "gateway": {
-    "dependencies": ["payments", "auth-service"]
-  }
+  "gateway": { "dependencies": ["auth-service", "payments", "orders"] },
+  "payments": { "dependencies": ["db-primary", "auth-service"] },
+  "orders": { "dependencies": ["inventory", "payments", "db-primary"] },
+  "inventory": { "dependencies": ["db-primary", "redis-cache"] },
+  "auth-service": { "dependencies": ["redis-cache", "db-primary"] },
+  "notifications": { "dependencies": ["redis-cache"] },
+  "db-primary": { "dependencies": [] },
+  "redis-cache": { "dependencies": [] }
 }

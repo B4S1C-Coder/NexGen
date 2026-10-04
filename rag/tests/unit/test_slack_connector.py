@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, UTC
-from unittest.mock import AsyncMock, patch
-from rag.src.connectors.slack import SlackConnector
+from unittest.mock import MagicMock, patch
+from src.connectors.slack import SlackConnector
 
 @pytest.fixture
 def slack_connector():
@@ -17,7 +17,7 @@ async def test_slack_fetch_no_auth():
 @patch("httpx.AsyncClient.get")
 async def test_slack_fetch_threads(mock_get, slack_connector):
     def mock_get_side_effect(url, params, headers):
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.raise_for_status.return_value = None
         
         if "conversations.list" in url:
