@@ -46,10 +46,8 @@ class CrossEncoderReranker:
         # Sort descending by cross-encoder score
         reranked_chunks.sort(key=lambda c: c.cross_encoder_score or 0.0, reverse=True)
         
-        # Filter chunks below relevance threshold
-        filtered_chunks = [
-            c for c in reranked_chunks 
-            if (c.cross_encoder_score or 0.0) >= self.settings.min_relevance_score
-        ]
-        
-        return filtered_chunks
+        # Optional relevance cut-off (disabled unless MIN_RELEVANCE_SCORE is set)
+        threshold = self.settings.min_relevance_score
+        if threshold is None:
+            return reranked_chunks
+        return [c for c in reranked_chunks if (c.cross_encoder_score or 0.0) >= threshold]

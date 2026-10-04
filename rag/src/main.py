@@ -184,36 +184,25 @@ async def knowledge(request: KnowledgeRequest) -> KnowledgeResult:
                         if c.chunk_id != pair.chunk_i.chunk_id
                     ]
 
-    # 8. LLMLingua-2 Context Compaction
-    original_chunk_texts = [c.content for c in top_chunks]
-    compressed_text = compactor.compress(
-        original_chunk_texts,
-        budget_tokens=request.compression_budget_tokens,
-    )
-
-    # 9. Technical ID Preservation
-    preservation_result = id_preservation.verify_and_reinject(
-        original_chunk_texts,
-        compressed_text,
-    )
-    final_text = preservation_result.text
-    total_tokens = len(final_text.split()) if final_text else 0
-
-    if preservation_result.total_reinjections > 0:
-        log.info(
-            "ids_reinjected",
-            count=preservation_result.total_reinjections,
-            tags=preservation_result.reinjected_tags,
-            query_id=request.query_id,
-        )
-
-    # 10. Construct result chunks from the final compacted context.
+    # 8-9. LLMLingua-2 compaction + technical ID preservation, one chunk at a time.
+    # Compressing each chunk separately (budget split evenly) keeps every chunk's own
+    # source_uri, so the Master can cite the right document.
     retrieved_at = datetime.now(timezone.utc)
-    knowledge_chunks = _build_compacted_knowledge_chunks(
-        top_chunks,
-        final_text,
-        retrieved_at,
-    )
+    per_chunk_budget = max(1, request.compression_budget_tokens // max(1, len(top_chunks)))
+    knowledge_chunks: list[KnowledgeChunk] = []
+    for chunk in top_chunks:
+        compressed_text = compactor.compress([chunk.content], budget_tokens=per_chunk_budget)
+        preservation_result = id_preservation.verify_and_reinject([chunk.content], compressed_text)
+        if preservation_result.total_reinjections > 0:
+            log.info(
+                "ids_reinjected",
+                count=preservation_result.total_reinjections,
+                tags=preservation_result.reinjected_tags,
+                query_id=request.query_id,
+            )
+        if preservation_result.text.strip():
+            knowledge_chunks.append(_to_knowledge_chunk(chunk, preservation_result.text, retrieved_at))
+    total_tokens = sum(len(c.content.split()) for c in knowledge_chunks)
 
     return KnowledgeResult(
         query_id=request.query_id,
@@ -225,42 +214,26 @@ async def knowledge(request: KnowledgeRequest) -> KnowledgeResult:
     )
 
 
-def _build_compacted_knowledge_chunks(
-    chunks: list[RankedChunk],
-    compacted_text: str,
-    retrieved_at: datetime,
-) -> list[KnowledgeChunk]:
-    """Build response chunks from the compacted context string.
-
-    The compactor returns a single compressed context payload after conflict
-    resolution and ID preservation. The KnowledgeResult schema still requires
-    chunk metadata for citation, so the compacted payload is attached to the
-    highest-ranked surviving chunk.
+def _to_knowledge_chunk(chunk: RankedChunk, text: str, retrieved_at: datetime) -> KnowledgeChunk:
+    """Turn one ranked, compressed chunk into the shared KnowledgeChunk schema.
 
     Parameters:
-        chunks: Conflict-resolved and authority-ranked chunks.
-        compacted_text: Final text after compression and ID preservation.
+        chunk: The ranked chunk whose metadata (source, tier, recency) is kept.
+        text: The chunk's text after compression and ID preservation.
         retrieved_at: Timestamp to attach to the response chunk.
 
     Returns:
-        A one-item KnowledgeChunk list containing the compacted context, or an
-        empty list when no context survived retrieval.
+        A KnowledgeChunk citing the chunk's own source.
     """
-    if not chunks or not compacted_text.strip():
-        return []
-
-    primary = chunks[0]
-    return [
-        KnowledgeChunk(
-            chunk_id=primary.chunk_id,
-            source_type=primary.metadata.source_type,
-            source_uri=primary.metadata.source_uri,
-            authority_tier=primary.metadata.authority_tier,
-            recency_score=primary.metadata.recency_score,
-            content=compacted_text,
-            retrieved_at=retrieved_at,
-        )
-    ]
+    return KnowledgeChunk(
+        chunk_id=chunk.chunk_id,
+        source_type=chunk.metadata.source_type,
+        source_uri=chunk.metadata.source_uri,
+        authority_tier=chunk.metadata.authority_tier,
+        recency_score=chunk.metadata.recency_score,
+        content=text,
+        retrieved_at=retrieved_at,
+    )
 
 
 def _replace_conflict_loser(

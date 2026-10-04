@@ -1,103 +1,104 @@
-import asyncio
-import os
-import httpx
-from typing import Dict, Any
+"""Step 3: run the fetch tasks of the graph in parallel."""
 
-from src.planner import ExecutionGraph, ExecutionNode
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timezone
+
+import httpx
+
 from nexgen_shared.schemas import (
-    LogRetrievalRequest, KnowledgeRequest, 
-    LogRetrievalResult, KnowledgeResult, 
-    TimeRange, KnowledgeTimeWindow, SchemaContextPayload
+    KnowledgeRequest,
+    KnowledgeResult,
+    KnowledgeTimeWindow,
+    LogRetrievalRequest,
+    LogRetrievalResult,
+    SchemaContextPayload,
+    TimeRange,
 )
 
-# Load optional mock packages safely
-try:
-    from src.mock_query.pipeline import MockQueryPipeline
-    from src.mock_rag.pipeline import MockRAGPipeline
-except ImportError:
-    MockQueryPipeline = None
-    MockRAGPipeline = None
+from src.fixtures import FixtureBackend
+from src.planner import ExecutionGraph, ExecutionNode
+
+
+def failed_logs(query_id: str, error: str) -> LogRetrievalResult:
+    """A LogRetrievalResult that records a failed call (E003)."""
+    return LogRetrievalResult(
+        query_id=query_id, status="failure", kql_generated="", syntax_valid=False,
+        refinement_attempts=0, hits=[], hit_count=0, error=f"E003: {error}",
+    )
+
+
+def failed_knowledge(query_id: str, error: str) -> KnowledgeResult:
+    """A KnowledgeResult that records a failed call (E004)."""
+    return KnowledgeResult(
+        query_id=query_id, status="failure", chunks=[], total_tokens_after_compression=0,
+        conflict_detected=False, error=f"E004: {error}",
+    )
+
 
 class DAGExecutor:
     """
-    Engine that traverses an ExecutionGraph and parallelizes external fetches using asyncio 
-    or internal mock networks based on local environment configurations.
+    Calls the Query service (/retrieve) and RAG service (/knowledge) at the same time.
+    If ``fixtures`` is given, it answers from local scenario data instead of HTTP.
     """
-    def __init__(self, query_service_url: str = "http://localhost:8001", rag_service_url: str = "http://localhost:8002"):
-        self.query_service_url = query_service_url
-        self.rag_service_url = rag_service_url
-        self.mock_mode = os.getenv("MOCK_SERVICES", "false").lower() == "true"
-        self.timeout = 10.0
-        
-        if self.mock_mode:
-            self.mock_query = MockQueryPipeline() if MockQueryPipeline else None
-            self.mock_rag = MockRAGPipeline() if MockRAGPipeline else None
 
-    async def execute(self, graph: ExecutionGraph, query_id: str, natural_language: str) -> Dict[str, Any]:
-        results = {}
-        fetch_tasks = []
-        
-        # 1. Identify leaf nodes capable of running parallelly (zero dependencies)
-        for node in graph.nodes:
-            if not node.dependencies and node.action_type in ["FETCH_LOGS", "FETCH_DOCS"]:
-                fetch_tasks.append(self._execute_node(node, query_id, natural_language))
-                
-        # 2. Gather IO requests asynchronously natively mapped correctly back to the node graph id
-        completed = await asyncio.gather(*fetch_tasks, return_exceptions=True)
-        
-        for res in completed:
-            if isinstance(res, dict):
-                results.update(res)
-            elif isinstance(res, Exception):
-                results["executor_error"] = str(res)
-                
-        return results
+    def __init__(
+        self,
+        query_url: str = "http://localhost:8001",
+        rag_url: str = "http://localhost:8002",
+        fixtures: FixtureBackend | None = None,
+        timeout: float = 30.0,
+    ) -> None:
+        self.query_url = query_url
+        self.rag_url = rag_url
+        self.fixtures = fixtures
+        self.timeout = timeout
 
-    async def _execute_node(self, node: ExecutionNode, query_id: str, natural_language: str) -> Dict[str, Any]:
+    async def execute(
+        self, graph: ExecutionGraph, question: str
+    ) -> tuple[LogRetrievalResult | None, KnowledgeResult | None]:
+        """Run every fetch task concurrently and return (log result, knowledge result)."""
+        fetches = [n for n in graph.nodes if n.action_type in ("FETCH_LOGS", "FETCH_DOCS")]
+        results = await asyncio.gather(*(self._run(n, graph.query_id, question) for n in fetches))
+        logs = next((r for r in results if isinstance(r, LogRetrievalResult)), None)
+        docs = next((r for r in results if isinstance(r, KnowledgeResult)), None)
+        return logs, docs
+
+    async def _run(self, node: ExecutionNode, query_id: str, question: str) -> LogRetrievalResult | KnowledgeResult:
         if node.action_type == "FETCH_LOGS":
-            req = LogRetrievalRequest(
+            log_request = LogRetrievalRequest(
                 query_id=query_id,
-                natural_language=natural_language,
+                natural_language=node.payload.get("natural_language", question),
                 index_hints=node.payload.get("index_hints", []),
-                time_range=TimeRange(**node.payload.get("time_range", {"from": "now-30m", "to": "now"})) if node.payload.get("time_range") else TimeRange(**{"from": "now-30m", "to": "now"}),
-                max_results=node.payload.get("max_results", 50),
-                schema_context=SchemaContextPayload(known_fields=[], value_samples={})
+                time_range=TimeRange.model_validate({"from": "now-30m", "to": "now"}),
+                max_results=200,
+                schema_context=SchemaContextPayload(known_fields=["service.name", "log.level", "message"]),
             )
-            
-            if self.mock_mode and self.mock_query:
-                # Direct Python pass-through avoiding HTTP
-                result = await self.mock_query.retrieve(req)
-                return {node.step_id: result}
-            else:
-                return await self._http_call(f"{self.query_service_url}/retrieve", req.model_dump(), node.step_id, LogRetrievalResult)
-
-        elif node.action_type == "FETCH_DOCS":
-            req = KnowledgeRequest(
-                query_id=query_id,
-                semantic_query=natural_language,
-                source_filters=[],
-                time_window=KnowledgeTimeWindow(not_after="2026-04-14T00:00:00Z"),
-                max_chunks=10,
-                compression_budget_tokens=2000
-            )
-
-            if self.mock_mode and self.mock_rag:
-                result = await self.mock_rag.retrieve_knowledge(req)
-                return {node.step_id: result}
-            else:
-                return await self._http_call(f"{self.rag_service_url}/knowledge", req.model_dump(), node.step_id, KnowledgeResult)
-
-        return {}
-
-    async def _http_call(self, url: str, payload: dict, step_id: str, model_cls) -> Dict[str, Any]:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            if self.fixtures:
+                return self.fixtures.logs(log_request, question)
             try:
-                resp = await client.post(url, json=payload)
-                resp.raise_for_status()
-                result = model_cls.model_validate_json(resp.text)
-                return {step_id: result}
-            except httpx.HTTPStatusError as e:
-                # Fallbacks gracefully into Pydantic models containing explicitly defined schemas without crashing execution
-                return {step_id: {"error": f"HTTP {e.response.status_code}"}}
-            except httpx.RequestError as e:
-                return {step_id: {"error": f"Request failed: {str(e)}"}}
+                return LogRetrievalResult.model_validate(await self._post(f"{self.query_url}/retrieve", log_request))
+            except httpx.HTTPError as exc:
+                return failed_logs(query_id, f"query service call failed: {exc!r}")
+
+        doc_request = KnowledgeRequest(
+            query_id=query_id,
+            semantic_query=question,
+            source_filters=["runbooks", "jira", "slack", "github"],
+            time_window=KnowledgeTimeWindow(not_after=datetime.now(timezone.utc)),
+            max_chunks=5,
+            compression_budget_tokens=2000,
+        )
+        if self.fixtures:
+            return self.fixtures.knowledge(doc_request)
+        try:
+            return KnowledgeResult.model_validate(await self._post(f"{self.rag_url}/knowledge", doc_request))
+        except httpx.HTTPError as exc:
+            return failed_knowledge(query_id, f"rag service call failed: {exc!r}")
+
+    async def _post(self, url: str, request: LogRetrievalRequest | KnowledgeRequest) -> object:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(url, json=request.model_dump(mode="json", by_alias=True))
+            response.raise_for_status()
+            return response.json()

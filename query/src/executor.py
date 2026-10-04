@@ -3,7 +3,6 @@
 Translates validated KQL to ES Query DSL via kql_dsl.py, executes the
 search against the live Elasticsearch cluster, and returns raw log hits.
 
-Defined in query.md §3.6.
 
 NOTE ON API: Uses elasticsearch-py 9.x keyword argument style.
 The body= parameter was deprecated in 8.x and removed in 9.x.

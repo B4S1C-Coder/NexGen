@@ -1,6 +1,6 @@
 """Unit tests for KQLValidator (validator.py).
 
-All tests are pure Python — no Elasticsearch or Qdrant required.
+All tests are pure Python — no Elasticsearch required.
 Each test verifies one specific validation rule in isolation.
 """
 

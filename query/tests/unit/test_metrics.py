@@ -1,4 +1,4 @@
-"""Unit tests for the Prometheus /metrics endpoint (TASKS.md P3-Q2)."""
+"""Unit tests for the Prometheus /metrics endpoint."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from src.main import app
 
 # Plain TestClient (no "with") does NOT trigger the app lifespan,
-# so /metrics and /health respond without needing live ES/Qdrant.
+# so /metrics and /health respond without needing live Elasticsearch.
 client = TestClient(app)
 
 

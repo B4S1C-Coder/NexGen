@@ -1,4 +1,4 @@
-"""NLI-based conflict detection for retrieved knowledge chunks (rag.md §5.1).
+"""NLI-based conflict detection for retrieved knowledge chunks.
 
 Uses a cross-encoder NLI model to perform pairwise contradiction detection
 across the top-k chunks returned by the authority scorer. When a pair of

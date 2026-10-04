@@ -1,4 +1,4 @@
-"""Evaluation harness for the NL-to-KQL pipeline (TASKS.md P5-1).
+"""Evaluation harness for the NL-to-KQL pipeline.
 
 Runs each natural-language question in data/eval_set.jsonl through the
 full generate->validate->repair pipeline, executes the generated KQL and
@@ -57,12 +57,12 @@ ES_URL = "http://localhost:9200"
 
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 EVAL_SET_PATH = DATA_DIR / "eval_set.jsonl"
-FALLBACK_EXAMPLES_PATH = DATA_DIR / "fallback_examples.jsonl"
+FALLBACK_EXAMPLES_PATH = DATA_DIR / "few_shot_examples.jsonl"
 
 # Unique index per run ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â avoids stale data from previous runs
 TEST_INDEX = f"nexgen-eval-{uuid.uuid4().hex[:8]}"
 
-# Required categories per TASKS.md P5-1
+# Required query categories
 REQUIRED_CATEGORIES = {
     "time_range",
     "service_filter",
@@ -128,7 +128,7 @@ class TestEvalSetDataset:
     """
 
     def test_eval_set_has_minimum_size(self) -> None:
-        """Dataset must contain at least 40 examples (TASKS.md P5-1)."""
+        """Dataset must contain at least 40 examples."""
         eval_set = load_jsonl(EVAL_SET_PATH)
         assert len(eval_set) >= MIN_EVAL_SET_SIZE
 
@@ -465,7 +465,7 @@ class TestNLToKQLEvaluationHarness:
         schema_ctx = build_eval_schema_ctx(TEST_INDEX)
         known_fields = {f.name for f in schema_ctx.relevant_fields}
 
-        # Static few-shot examples (bypass Qdrant): reuse fallback corpus
+        # Static few-shot examples: first 5 from the examples file
         fallback = load_jsonl(FALLBACK_EXAMPLES_PATH)
         examples = [
             FewShotExample(nl=r["nl"], kql=r["kql"]) for r in fallback[:5]

@@ -15,7 +15,6 @@ Supported KQL patterns (all verified against official Elastic docs):
   Nested:         user:{ first: "Alice" AND last: "White" }
   Full-text:      message: "connection refused"
 
-Reference: query.md §3.6
 """
 
 from __future__ import annotations

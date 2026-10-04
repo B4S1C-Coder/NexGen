@@ -1,72 +1,43 @@
+from datetime import datetime, timezone
+
 import pytest
-from datetime import datetime
+
 from nexgen_shared.schemas import UserQuery
+
 from src.intent import IntentResult
 from src.planner import DAGPlanner
 
+
 @pytest.fixture
-def query():
-    return UserQuery(
-        query_id="q123", 
-        raw_text="test query", 
-        session_id="s1", 
-        timestamp_utc=datetime.now()
-    )
+def query() -> UserQuery:
+    return UserQuery(query_id="q1", raw_text="test", session_id="s1", timestamp_utc=datetime.now(timezone.utc))
 
-def test_dag_both_logs_and_docs(query):
-    intent = IntentResult(
-        logs_needed=True, 
-        docs_needed=True, 
-        is_quantitative=False, 
-        is_qualitative=True
-    )
-    planner = DAGPlanner()
-    graph = planner.plan(query, intent, topology={})
-    
-    assert len(graph.nodes) == 3
-    actions = [n.action_type for n in graph.nodes]
-    assert "FETCH_LOGS" in actions
-    assert "FETCH_DOCS" in actions
-    assert "SYNTHESIZE" in actions
-    
-    # Verify SYNTHESIZE node depends on the other two
-    synth_node = next(n for n in graph.nodes if n.action_type == "SYNTHESIZE")
-    assert len(synth_node.dependencies) == 2
 
-def test_dag_logs_only(query):
-    intent = IntentResult(
-        logs_needed=True, 
-        docs_needed=False, 
-        is_quantitative=True, 
-        is_qualitative=False
-    )
-    planner = DAGPlanner()
-    graph = planner.plan(query, intent, topology={})
-    
-    assert len(graph.nodes) == 2
-    actions = [n.action_type for n in graph.nodes]
-    assert "FETCH_LOGS" in actions
-    assert "FETCH_DOCS" not in actions
-    
-    # SYNTHESIZE node should only depend on FETCH_LOGS
-    synth_node = next(n for n in graph.nodes if n.action_type == "SYNTHESIZE")
-    assert len(synth_node.dependencies) == 1
+def test_both_routes_give_three_tasks(query, topology):
+    graph = DAGPlanner().plan(query, IntentResult(logs_needed=True, docs_needed=True), topology)
+    assert [n.action_type for n in graph.nodes] == ["FETCH_LOGS", "FETCH_DOCS", "SYNTHESIZE"]
+    assert graph.nodes[-1].dependencies == ["fetch_logs", "fetch_docs"]
 
-def test_dag_topology_expansion(query):
-    intent = IntentResult(
-        logs_needed=True, 
-        docs_needed=False, 
-        is_quantitative=True, 
-        is_qualitative=False, 
-        index_hints=["payments-*"]
-    )
-    # Mock topology definition where 'payments' depends on 'db-primary'
-    topology = {
-        "payments": {"dependencies": ["db-primary"]}
-    }
-    planner = DAGPlanner()
-    graph = planner.plan(query, intent, topology=topology)
-    
-    log_node = next(n for n in graph.nodes if n.action_type == "FETCH_LOGS")
-    assert "payments-*" in log_node.payload["index_hints"]
-    assert "db-primary-*" in log_node.payload["index_hints"]
+
+def test_logs_only_gives_two_tasks(query, topology):
+    graph = DAGPlanner().plan(query, IntentResult(logs_needed=True, docs_needed=False), topology)
+    assert [n.action_type for n in graph.nodes] == ["FETCH_LOGS", "SYNTHESIZE"]
+    assert graph.nodes[-1].dependencies == ["fetch_logs"]
+
+
+def test_index_hints_include_called_services(query, topology):
+    intent = IntentResult(logs_needed=True, docs_needed=False, index_hints=["payments-*"])
+    graph = DAGPlanner().plan(query, intent, topology)
+    assert graph.nodes[0].payload["index_hints"] == ["payments-*", "db-primary-*"]
+
+
+def test_troubleshooting_asks_for_all_problem_logs_downstream(query, topology):
+    intent = IntentResult(logs_needed=True, docs_needed=True, index_hints=["gateway-*"])
+    payload = DAGPlanner().plan(query, intent, topology).nodes[0].payload
+    assert payload["index_hints"] == ["gateway-*", "payments-*", "db-primary-*"]
+    assert payload["natural_language"] == "All log events with level WARN or ERROR"
+
+
+def test_count_question_passes_user_wording(query, topology):
+    intent = IntentResult(logs_needed=True, docs_needed=False, is_quantitative=True)
+    assert DAGPlanner().plan(query, intent, topology).nodes[0].payload["natural_language"] == "test"

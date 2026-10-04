@@ -1,5 +1,5 @@
 import pytest
-from rag.src.preprocessor import Preprocessor
+from src.preprocessor import Preprocessor
 
 def test_slack_disentanglement():
     preprocessor = Preprocessor()

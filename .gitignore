@@ -18,4 +18,5 @@ dist/
 .vscode
 
 query/.env
-vendor/llama.cpp/build/
+# End-to-end test output (tests/e2e/run.sh)
+tests/e2e/logs/

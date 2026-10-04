@@ -4,8 +4,6 @@ Wraps KQLGenerator and KQLValidator in a retry loop. If the generated
 KQL is invalid, the error messages are fed back to the generator so
 the LLM can correct its output. Raises E002KqlSyntaxError if all
 attempts are exhausted.
-
-Defined in TASKS.md P2-Q4.
 """
 
 from __future__ import annotations
@@ -69,6 +67,16 @@ class RepairAgent:
         schema_ctx: SchemaContext,
         examples: list[FewShotExample],
     ) -> str:
+        """Generate valid KQL (see ``repair_with_count``); returns only the KQL."""
+        kql, _ = await self.repair_with_count(natural_language, schema_ctx, examples)
+        return kql
+
+    async def repair_with_count(
+        self,
+        natural_language: str,
+        schema_ctx: SchemaContext,
+        examples: list[FewShotExample],
+    ) -> tuple[str, int]:
         """Generate valid KQL, retrying with error feedback if invalid.
 
         On the first attempt the natural language query is sent as-is.
@@ -85,7 +93,8 @@ class RepairAgent:
             examples:         Few-shot examples from FewShotSelector.
 
         Returns:
-            A validated KQL string that passed all KQLValidator checks.
+            (kql, attempts): a KQL string that passed all KQLValidator checks,
+            and how many generation attempts it took (1 = first try).
 
         Raises:
             E002KqlSyntaxError: If all attempts produce invalid KQL
@@ -138,7 +147,7 @@ class RepairAgent:
                     attempt,
                     kql,
                 )
-                return kql
+                return kql, attempt
 
             # Build repair prompt for the next attempt
             error_summary = "\n".join(f"- {e}" for e in result.errors)

@@ -1,4 +1,4 @@
-"""Structured errors; codes align with AGENTS.md §7."""
+"""Structured errors with stable codes E001-E008, shared by all services."""
 
 
 class NexGenError(Exception):

@@ -1,4 +1,4 @@
-"""Canonical Pydantic v2 models for inter-component JSON contracts (AGENTS.md §5)."""
+"""Canonical Pydantic v2 models for inter-component JSON contracts (the only data contract between services)."""
 
 from __future__ import annotations
 

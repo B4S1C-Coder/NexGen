@@ -1,16 +1,11 @@
-import os
 import uuid
 import asyncio
 from datetime import datetime, timezone
 
 import streamlit as st
-from dotenv import load_dotenv
 
 from nexgen_shared.schemas import UserQuery
 from src.orchestrator import MasterOrchestrator
-
-# Load environment configuration dynamically parsing OPENAI limits natively
-load_dotenv()
 
 st.set_page_config(page_title="NexGen Orchestrator", page_icon="⚙️", layout="wide")
 st.title("NexGen RCA Orchestrator 🧠")
@@ -42,22 +37,20 @@ def render_trace_cards(trace_steps):
                 c1.metric("Logs Needed", str(data.get("logs_needed")))
                 c2.metric("Docs Needed", str(data.get("docs_needed")))
                 c3.metric("Quantitative", str(data.get("is_quantitative")))
-                c4.metric("Qualitative", str(data.get("is_qualitative")))
+                c4.metric("Used LLM", str(data.get("used_llm")))
             elif stage == "planner":
                 st.markdown("#### 🗺️ DAG Planner")
                 data = step.get("data", {})
                 for node in data.get("nodes", []):
-                    st.markdown(f"- **{node.get('action_type')}** (step: `{node.get('step_id')[:8]}`) -> deps: `{node.get('dependencies', [])}`")
+                    st.markdown(f"- **{node.get('action_type')}** (step: `{node.get('step_id')}`) -> deps: `{node.get('dependencies', [])}`")
             elif stage == "executor":
                 st.markdown("#### ⚡ DAG Executor")
-                metrics = step.get("metrics", {})
-                st.success(f"Execution complete. Logs fetched: `{metrics.get('logs_fetched')}` | Docs fetched: `{metrics.get('docs_fetched')}`")
+                st.success(f"Fetched `{step.get('logs')}` log lines and `{step.get('docs')}` documents in parallel.")
             elif stage == "reasoner":
-                cycle = step.get("cycle", 1)
-                st.markdown(f"#### 🧠 Reasoner (Cycle {cycle})")
-                for i, hyp in enumerate(step.get("hypotheses", [])):
-                    icon = "✅" if hyp.get("is_accepted") else "❌"
-                    st.markdown(f"{icon} **Hypothesis {i+1}**: {hyp.get('description', '')} \n*(Support: `{hyp.get('supporting_evidence_count')}`, Contradictions: `{hyp.get('contradictions')}`)*")
+                st.markdown("#### 🧠 Reasoner + Validator")
+                for line in step.get("trace", []):
+                    icon = "✅" if ": accepted" in line else "❌"
+                    st.markdown(f"{icon} {line}")
             elif stage == "final":
                 st.markdown("#### 🏁 Final RCA Synthesis")
                 data = step.get("data", {})
