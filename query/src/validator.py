@@ -11,8 +11,6 @@ Checks performed:
   4. No dangling operators at start or end of expression
   5. Colon expressions have a value after the colon
   6. Field names exist in SchemaContext (when schema is provided)
-
-Defined in TASKS.md P2-Q3.
 """
 
 from __future__ import annotations

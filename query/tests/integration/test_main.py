@@ -1,6 +1,6 @@
-"""Integration tests for the FastAPI application endpoints (TASKS.md P0-Q1).
+"""Integration tests for the FastAPI application endpoints.
 
-These tests verify the three stub endpoints defined in AGENTS.md §6.1
+These tests verify the three stub endpoints of the service
 behave correctly before any real pipeline logic is wired in.
 """
 

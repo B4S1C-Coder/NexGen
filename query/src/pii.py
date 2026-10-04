@@ -16,8 +16,6 @@ Patterns masked:
   - SHA-256 hashes        → <HASH>
 
 Trace IDs are preserved — they are needed for correlation.
-
-Defined in TASKS.md P2-Q5.
 """
 
 from __future__ import annotations

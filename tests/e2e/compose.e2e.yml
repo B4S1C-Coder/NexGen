@@ -1,0 +1,7 @@
+# Lighter settings for running the end-to-end test on a laptop (used with docker-compose.yml).
+services:
+  elasticsearch:
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m

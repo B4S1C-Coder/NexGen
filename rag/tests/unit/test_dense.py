@@ -70,8 +70,8 @@ def test_retrieve_dense():
     
     # Verify HTTP call
     mock_http_client.post.assert_called_once_with(
-        f"{settings.llamacpp_embed_server_url.rstrip('/')}/embedding",
-        json={"content": "test query"}
+        f"{settings.llamacpp_embed_server_url.rstrip('/')}/api/embeddings",
+        json={"model": settings.embedding_model, "prompt": "test query"}
     )
     
     # Verify Qdrant search call

@@ -1,4 +1,4 @@
-"""Unit tests for the ConflictDetector (P3-R1).
+"""Unit tests for the ConflictDetector.
 
 All tests mock the CrossEncoder model so no model download or GPU is needed.
 """

@@ -1,13 +1,11 @@
 """FastAPI application entry-point for the NL-to-KQL Pipeline service.
 
-Exposes endpoints as defined in AGENTS.md §6.1:
+Exposes:
 - POST /retrieve  — translate NL to KQL and fetch log rows
 - GET  /health    — liveness probe
 - GET  /schema-cache/status — index-schema cache freshness
-- GET  /metrics   — Prometheus metrics (P3-Q2)
+- GET  /metrics   — Prometheus metrics
 
-P2-Q6: Full pipeline wired — all components connected.
-P3-Q2: Prometheus metrics endpoint added.
 """
 
 from __future__ import annotations
@@ -63,8 +61,6 @@ class Settings(BaseSettings):
     query_port: int = 8001
     log_level: str = "INFO"
     elasticsearch_url: str = "http://localhost:9200"
-    ollama_base_url: str = "http://localhost:11434"
-    qdrant_url: str = "http://localhost:6333"
     max_repair_attempts: int = 3
     default_max_results: int = 500
     schema_cache_refresh_interval_seconds: int = 300
@@ -74,7 +70,7 @@ settings = Settings()
 
 
 # ---------------------------------------------------------------------------
-# Prometheus metrics (P3-Q2)
+# Prometheus metrics
 # ---------------------------------------------------------------------------
 
 QUERY_LATENCY = Histogram(
@@ -159,9 +155,9 @@ async def retrieve(request: LogRetrievalRequest) -> LogRetrievalResult:
         5. PIIMasker.mask()              → cleaned hits
         6. Assemble LogRetrievalResult
 
-    P3-Q2: records pipeline latency (always) and refinement attempts.
+    Records pipeline latency (always) and refinement attempts.
     """
-    start = time.perf_counter()          # P3-Q2
+    start = time.perf_counter()
     refinement_attempts = 0
 
     try:
@@ -169,18 +165,19 @@ async def retrieve(request: LogRetrievalRequest) -> LogRetrievalResult:
         schema_ctx = await schema_linker.link(
             natural_language=request.natural_language,
             index_hints=request.index_hints,
-            schema_context_from_request=request.schema_context or {},
+            schema_context_from_request=request.schema_context.model_dump(),
         )
 
         # Stage 2 — Few-shot example retrieval
         examples = await few_shot_selector.select(request.natural_language)
 
         # Stage 3 — KQL generation with validation and repair
-        kql = await repair_agent.repair(
+        kql, attempts = await repair_agent.repair_with_count(
             natural_language=request.natural_language,
             schema_ctx=schema_ctx,
             examples=examples,
         )
+        refinement_attempts = attempts - 1  # repairs after the first try
 
         # Stage 4 — Execute against Elasticsearch
         max_results = request.max_results or settings.default_max_results
@@ -209,7 +206,7 @@ async def retrieve(request: LogRetrievalRequest) -> LogRetrievalResult:
             for h in clean_hits
         ]
 
-        REFINEMENT_ATTEMPTS.inc(refinement_attempts)   # P3-Q2
+        REFINEMENT_ATTEMPTS.inc(refinement_attempts)
 
         return LogRetrievalResult(
             query_id=request.query_id,
@@ -275,11 +272,11 @@ async def retrieve(request: LogRetrievalRequest) -> LogRetrievalResult:
         )
 
     finally:
-        QUERY_LATENCY.observe(time.perf_counter() - start)   # P3-Q2
+        QUERY_LATENCY.observe(time.perf_counter() - start)
 
 
 # ---------------------------------------------------------------------------
-# GET /metrics  (P3-Q2)
+# GET /metrics
 # ---------------------------------------------------------------------------
 
 @app.get("/metrics")

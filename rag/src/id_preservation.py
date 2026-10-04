@@ -1,4 +1,4 @@
-"""Post-compression Technical ID preservation layer (rag.md §6.2).
+"""Post-compression Technical ID preservation layer.
 
 Verifies that all ``<TAG:value>`` technical identifiers from the original
 uncompressed chunks are present in the compressed output. Any missing tags

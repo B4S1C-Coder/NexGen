@@ -1,4 +1,4 @@
-"""Multi-agent debate module for resolving knowledge conflicts (rag.md §5.2).
+"""Multi-agent debate module for resolving knowledge conflicts.
 
 When the ConflictDetector identifies contradictions between retrieved chunks,
 this module runs a structured debate between two LLM agents — each defending
@@ -37,6 +37,11 @@ class MultiAgentDebate:
 
     def __init__(self, settings: Settings) -> None:
         self._ollama_base_url = settings.ollama_base_url.rstrip("/")
+        self._model = settings.debate_llm_model
+        self._max_tokens = settings.debate_llm_max_tokens
+        self._headers = (
+            {"Authorization": f"Bearer {settings.debate_llm_api_key}"} if settings.debate_llm_api_key else {}
+        )
         self._max_rounds = settings.max_debate_rounds
         self._agent_prompt_template = self._load_prompt("debate_agent.txt")
         self._aggregator_prompt_template = self._load_prompt("debate_aggregator.txt")
@@ -66,11 +71,12 @@ class MultiAgentDebate:
         """
         response = await client.post(
             f"{self._ollama_base_url}/v1/chat/completions",
+            headers=self._headers,
             json={
-                "model": "llama3.2",
+                "model": self._model,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.3,
-                "max_tokens": 300,
+                "max_tokens": self._max_tokens,
             },
             timeout=30.0,
         )

@@ -1,163 +1,162 @@
+"""Runs the six Master steps in order for one user question."""
+
+from __future__ import annotations
+
 import logging
-import asyncio
-import os
-from typing import Optional, List, Dict, Any
+import time
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-import json
-from pathlib import Path
+from typing import Any
 
 from openai import AsyncOpenAI
 
-from nexgen_shared.schemas import UserQuery, RCAReport, LogRetrievalResult, KnowledgeResult
-from src.session import SessionManager, SessionState, Message
-from src.intent import IntentClassifier
-from src.planner import DAGPlanner
-from src.executor import DAGExecutor
+from nexgen_shared.schemas import RCAReport, UserQuery
+
 from src.context import ContextAssembler
-from src.reasoner import ReasonerAgent
-from src.validator import ValidatorAgent
+from src.executor import DAGExecutor
+from src.fixtures import FixtureBackend
+from src.intent import IntentClassifier, IntentResult
+from src.planner import DAGPlanner
+from src.reasoner import Hypothesis, ReasonerAgent
+from src.session import Message, SessionManager, SessionState
+from src.settings import Settings
 from src.synthesiser import RCASynthesiser
+from src.topology import Topology
+from src.validator import ValidatorAgent
 
 logger = logging.getLogger(__name__)
 
+ProgressCallback = Callable[[dict[str, Any]], Awaitable[None]]
+
+
+@dataclass
+class RunResult:
+    """The report plus the internals the benchmark and the UI want to see."""
+
+    report: RCAReport
+    intent: IntentResult
+    candidates: list[Hypothesis] = field(default_factory=list)
+    accepted: Hypothesis | None = None
+    tokens_before: int = 0
+    tokens_after: int = 0
+    timings_ms: dict[str, float] = field(default_factory=dict)
+
+
+def low_confidence_report(query_id: str, reason: str) -> RCAReport:
+    """A report that says the analysis could not be completed, and why."""
+    return RCAReport(
+        query_id=query_id,
+        root_cause_summary=f"Analysis could not be completed: {reason}",
+        confidence=0.0,
+        evidence=[],
+        recommended_actions=["Check that the Query and RAG services are reachable and the question names a service."],
+        reasoning_trace_summary=reason,
+        mttr_estimate_minutes=0,
+        generated_at=datetime.now(timezone.utc),
+    )
+
+
 class MasterOrchestrator:
-    """
-    Central Cognitive Loop linking all discrete Master components into 
-    the final Phase 4 Directed Acyclic Pipeline.
-    """
-    def __init__(self):
-        # Read API Keys uniquely overriding via .env safely ensuring compat checks hold true dynamically
-        api_key = os.getenv("OPENAI_API_KEY", "dummy_key_or_actual_key")
-        base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
-        is_mock = os.getenv("MOCK_SERVICES", "false").lower() == "true"
-        
-        # Instantiate standard async payload provider for inference mapping or fallback seamlessly
-        if is_mock and (api_key == "dummy_key_or_actual_key" or "dummy" in api_key):
-            self.llm = None
-        else:
-            self.llm = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    """intent -> plan -> fetch (parallel) -> assemble context -> reason + validate -> synthesise."""
 
-        # Initialize internal state classes
-        self.session_manager = SessionManager(redis_url=os.getenv("REDIS_URL", "redis://localhost:6379/0"))
-        self.intent_classifier = IntentClassifier(openai_client=self.llm)
-        self.planner = DAGPlanner()
-        self.executor = DAGExecutor()
-        self.context_assembler = ContextAssembler()
-        self.reasoner = ReasonerAgent(openai_client=self.llm)
-        self.validator = ValidatorAgent(openai_client=self.llm)
-        self.synthesiser = RCASynthesiser(openai_client=self.llm)
-        
-        self._load_topology()
-        
-    def _load_topology(self):
-        p = Path("config/topology.json")
-        if p.exists():
-            with open(p, "r") as f:
-                self.topology = json.load(f)
-        else:
-            self.topology = {}
-
-    async def execute_query(self, query: UserQuery, progress_callback=None) -> RCAReport:
-        """
-        Executes the overall NexGen RCA logic loop.
-        If progress_callback is provided, it calls the function with trace metrics dynamically.
-        """
-        try:
-            # 1. State Retention Block
-            session = await self.session_manager.get(query.session_id)
-            if not session:
-                session = SessionState(session_id=query.session_id)
-            session.active_context_window.append(Message(role="user", content=query.raw_text))
-            await self.session_manager.put(query.session_id, session)
-            
-            if progress_callback: await progress_callback({"stage": "session", "msg": "Session loaded and history updated."})
-
-            # 2. Intent parsing intelligently
-            intent = await self.intent_classifier.classify(query.raw_text)
-            if progress_callback: await progress_callback({"stage": "intent", "data": intent.model_dump()})
-
-            # 3. DAG Construction
-            graph = self.planner.plan(query, intent, self.topology)
-            if progress_callback: await progress_callback({"stage": "planner", "data": graph.model_dump()})
-
-            # 4. Asynchronous Pipeline Graph execution fetching parallel resources optimally
-            datasets = await self.executor.execute(graph, query.query_id, query.raw_text)
-            
-            logs_result = None
-            docs_result = None
-            
-            for key, val in datasets.items():
-                if isinstance(val, LogRetrievalResult):
-                    logs_result = val
-                elif isinstance(val, KnowledgeResult):
-                    docs_result = val
-                    
-            if progress_callback: await progress_callback({"stage": "executor", "metrics": {"logs_fetched": bool(logs_result), "docs_fetched": bool(docs_result)}})
-
-            # 5. Context compilation strictly validating required logs exist structurally
-            if not self.context_assembler.is_context_sufficient(intent, logs_result):
-                 error_report = self._build_low_confidence_report(query.query_id, "Insufficient logs retrieved for deterministic analysis.")
-                 if progress_callback: await progress_callback({"stage": "final", "data": error_report.model_dump()})
-                 return error_report
-
-            synthesis_input = self.context_assembler.assemble(query.raw_text, query.query_id, logs_result, docs_result, intent)
-
-            # 6. Mini T.O.T reasoning framework spanning maximum 3 adversarial cycles internally protecting RCA boundaries
-            valid_hypothesis = None
-            for cycle in range(3):
-                hypotheses = await self.reasoner.reason(synthesis_input)
-                
-                for h in hypotheses:
-                    h.is_accepted = False
-                    try:
-                        if await self.validator.validate(h, synthesis_input):
-                            h.is_accepted = True
-                            valid_hypothesis = h
-                            break
-                    except Exception as e:
-                        if "E008" in type(e).__name__:
-                            h.is_accepted = False
-                            h.contradictions += 2
-                            h.description += f" [Rejected: {str(e)}]"
-                        else:
-                            raise e
-                            
-                # Flash trace output AFTER validators process the cycle
-                if progress_callback: await progress_callback({"stage": "reasoner", "cycle": cycle + 1, "hypotheses": [h.model_dump() for h in hypotheses]})
-                        
-                if valid_hypothesis:
-                    break
-                    
-            # Update trace logically
-            if valid_hypothesis:
-                synthesis_input.reasoning_trace.append(f"Accepted Hypothesis: {valid_hypothesis.description}")
-            else:
-                synthesis_input.reasoning_trace.append("Validation cycles exhausted with 0 secure logic paths anchored safely.")
-
-            # 7. RCA Synthesis Execution explicitly injecting context states natively
-            report = await self.synthesiser.synthesize(query, logs_result, docs_result, session.active_context_window)
-            
-            # Post Synthesis Cleanup
-            session.active_context_window.append(Message(role="assistant", content=report.root_cause_summary))
-            await self.session_manager.put(session.session_id, self.session_manager.trim_context(session))
-            
-            if progress_callback: await progress_callback({"stage": "final", "data": report.model_dump()})
-            return report
-
-        except Exception as e:
-            logger.error(f"Master orchestrator halted violently: {e}", exc_info=True)
-            error_report = self._build_low_confidence_report(query.query_id, str(e))
-            if progress_callback: await progress_callback({"stage": "final", "data": error_report.model_dump()})
-            return error_report
-
-    def _build_low_confidence_report(self, query_id: str, reason: str) -> RCAReport:
-        return RCAReport(
-            query_id=query_id,
-            root_cause_summary=f"Analysis halted. Reason: {reason}",
-            confidence=0.0,
-            evidence=[],
-            recommended_actions=["Review system error outputs.", "Check LLM configurations explicitly if local."],
-            reasoning_trace_summary="Pipeline loop terminated early.",
-            mttr_estimate_minutes=0,
-            generated_at=datetime.now(timezone.utc).isoformat()
+    def __init__(self, settings: Settings | None = None) -> None:
+        settings = settings or Settings()
+        llm = (
+            AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url, max_retries=5)
+            if settings.openai_api_key
+            else None
         )
+        model = settings.openai_model_name
+        self.llm_enabled = llm is not None
+        self.topology = Topology.load(settings.topology_path)
+        self.sessions = SessionManager(settings.redis_url, settings.session_ttl_seconds)
+        self.intent = IntentClassifier(self.topology.services, llm, model)
+        self.planner = DAGPlanner()
+        self.executor = DAGExecutor(
+            settings.query_service_url,
+            settings.rag_service_url,
+            fixtures=FixtureBackend() if settings.mock_services else None,
+            timeout=settings.http_timeout_seconds,
+        )
+        self.context = ContextAssembler(settings.max_synthesis_tokens)
+        self.reasoner = ReasonerAgent(self.topology.services, llm, model)
+        self.validator = ValidatorAgent(self.topology)
+        self.synthesiser = RCASynthesiser(llm, model)
+
+    async def execute_query(self, query: UserQuery, progress: ProgressCallback | None = None) -> RCAReport:
+        """Answer one question. Never raises: failures become a zero-confidence report."""
+        try:
+            return (await self.run(query, progress)).report
+        except Exception as exc:
+            logger.exception("Master pipeline failed")
+            return low_confidence_report(query.query_id, f"internal error: {exc}")
+
+    async def run(self, query: UserQuery, progress: ProgressCallback | None = None) -> RunResult:
+        """Run every step and return the report together with intermediate results."""
+        timings: dict[str, float] = {}
+        start = time.perf_counter()
+
+        def lap(name: str, since: float) -> float:
+            now = time.perf_counter()
+            timings[name] = round((now - since) * 1000, 1)
+            return now
+
+        async def emit(stage: str, **data: Any) -> None:
+            if progress is not None:
+                await progress({"stage": stage, **data})
+
+        session = await self.sessions.get(query.session_id) or SessionState(session_id=query.session_id)
+        session.query_history.append(query)
+        session.messages.append(Message(role="user", content=query.raw_text))
+
+        # 1. Intent  2. Plan
+        intent = await self.intent.classify(query.raw_text)
+        graph = self.planner.plan(query, intent, self.topology)
+        t = lap("intent_and_plan", start)
+        await emit("intent", data=intent.model_dump())
+        await emit("planner", data=graph.model_dump())
+
+        # 3. Fetch logs and docs in parallel
+        logs, docs = await self.executor.execute(graph, query.raw_text)
+        t = lap("fetch", t)
+        await emit("executor", logs=len(logs.hits) if logs else 0, docs=len(docs.chunks) if docs else 0)
+
+        # 4. Context
+        context = self.context.assemble(query.query_id, query.raw_text, logs, docs)
+        result = RunResult(
+            report=low_confidence_report(query.query_id, "not run"),
+            intent=intent,
+            tokens_before=self.context.count_tokens(logs.hits if logs else []),
+            tokens_after=self.context.count_tokens(context.log_evidence),
+        )
+
+        if not self.context.is_context_sufficient(intent, logs, docs):
+            errors = [r.error for r in (logs, docs) if r is not None and r.error]
+            reason = "; ".join(errors) or "no matching logs or documents were found"
+            result.report = low_confidence_report(query.query_id, reason)
+        else:
+            # 5. Reason + validate: take the first candidate that passes all checks
+            if intent.logs_needed and not intent.is_quantitative:
+                named = [hint.removesuffix("-*") for hint in intent.index_hints]
+                result.candidates = await self.reasoner.reason(context, named)
+                for hypothesis in result.candidates:
+                    verdict = self.validator.validate(hypothesis, context)
+                    status = "accepted" if verdict.accepted else "rejected"
+                    context.reasoning_trace.append(f"{hypothesis.culprit_service}: {status} ({verdict.reason})")
+                    if verdict.accepted:
+                        result.accepted = hypothesis
+                        break
+                t = lap("reason_and_validate", t)
+                await emit("reasoner", trace=list(context.reasoning_trace))
+
+            # 6. Synthesise
+            result.report = await self.synthesiser.synthesize(query.query_id, intent, context, result.accepted)
+            t = lap("synthesis", t)
+
+        session.messages.append(Message(role="assistant", content=result.report.root_cause_summary))
+        await self.sessions.put(session)
+        lap("total", start)
+        result.timings_ms = timings
+        await emit("final", data=result.report.model_dump(mode="json"))
+        return result

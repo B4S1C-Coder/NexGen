@@ -1,61 +1,24 @@
 """Few-Shot Selector — Stage 2 of the NL-to-KQL pipeline.
 
-Retrieves semantically similar NLQ→KQL examples from Qdrant to use
-as few-shot demonstrations for the KQL Generator.
-
-Falls back to data/fallback_examples.jsonl when Qdrant returns fewer
-than MIN_QDRANT_RESULTS results above the similarity threshold.
-
-Defined in TASKS.md P2-Q1.
+Picks the NLQ→KQL examples from data/few_shot_examples.jsonl that share the
+most words with the user's question, to show the LLM the expected KQL style.
+Word overlap is used instead of embeddings: with a few dozen curated examples
+it is good enough, needs no vector store, and is easy to reason about.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import httpx
-from qdrant_client import QdrantClient
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+EXAMPLES_PATH = Path(__file__).parent.parent / "data" / "few_shot_examples.jsonl"
+TOP_K = 4
 
-FALLBACK_PATH = Path(__file__).parent.parent / "data" / "fallback_examples.jsonl"
-FEW_SHOT_COLLECTION = "nexgen_few_shot"
-
-# Minimum Qdrant results required before we trust Qdrant over fallback
-MIN_QDRANT_RESULTS = 2
-
-# Similarity threshold — cosine similarity must be above this to count
-SIMILARITY_THRESHOLD = 0.70
-
-
-class FewShotSettings(BaseSettings):
-    """Configuration for the FewShotSelector."""
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-    qdrant_url: str = "http://localhost:6333"
-    ollama_url: str = "http://localhost:11434"
-    embed_model: str = "nomic-embed-text"
-    few_shot_top_k: int = 4
-    few_shot_similarity_threshold: float = 0.70
-    few_shot_min_qdrant_results: int = 2
-
-
-# ---------------------------------------------------------------------------
-# Data types
-# ---------------------------------------------------------------------------
 
 @dataclass
 class FewShotExample:
@@ -64,7 +27,7 @@ class FewShotExample:
     Attributes:
         nl:    The natural language question.
         kql:   The correct Kibana KQL answer.
-        score: Similarity score from Qdrant (None for fallback examples).
+        score: Number of words shared with the user's question (None if not scored).
     """
 
     nl: str
@@ -72,16 +35,8 @@ class FewShotExample:
     score: float | None = None
 
 
-# ---------------------------------------------------------------------------
-# FewShotSelector
-# ---------------------------------------------------------------------------
-
 class FewShotSelector:
-    """Retrieves relevant NLQ→KQL examples for few-shot prompting.
-
-    On startup loads fallback examples from disk. On each select() call,
-    embeds the query and searches Qdrant. Falls back to static examples
-    if Qdrant returns fewer than MIN_QDRANT_RESULTS above threshold.
+    """Returns the examples most similar (by shared words) to a question.
 
     Usage:
         selector = FewShotSelector()
@@ -89,171 +44,59 @@ class FewShotSelector:
         examples = await selector.select("show me payment errors")
     """
 
-    def __init__(self) -> None:
-        self._settings = FewShotSettings()
-        self._client: QdrantClient | None = None
-        self._fallback: list[FewShotExample] = []
-
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
+    def __init__(self, path: Path = EXAMPLES_PATH, top_k: int = TOP_K) -> None:
+        self._path = path
+        self._top_k = top_k
+        self._examples: list[FewShotExample] = []
 
     async def startup(self) -> None:
-        """Initialise Qdrant client and load fallback examples from disk.
-
-        Should be called once during FastAPI app lifespan startup.
-        """
-        self._client = QdrantClient(
-            url=self._settings.qdrant_url,
-            check_compatibility=False,
-        )
-        self._fallback = _load_fallback_examples(FALLBACK_PATH)
-        logger.info(
-            "FewShotSelector started. Loaded %d fallback examples.",
-            len(self._fallback),
-        )
+        """Load the examples file once at service start."""
+        self._examples = _load_examples(self._path)
+        logger.info("FewShotSelector loaded %d examples.", len(self._examples))
 
     async def shutdown(self) -> None:
-        """Close the Qdrant client connection."""
-        if self._client is not None:
-            self._client.close()
-            logger.info("FewShotSelector shut down.")
-
-    # ------------------------------------------------------------------
-    # Core selection
-    # ------------------------------------------------------------------
+        """Nothing to release; kept so main.py can treat all stages alike."""
 
     async def select(self, natural_language: str) -> list[FewShotExample]:
-        """Return the most relevant few-shot examples for a query.
-
-        Embeds the natural language query, searches Qdrant for similar
-        examples, and returns those above SIMILARITY_THRESHOLD.
-
-        Falls back to static JSONL examples if Qdrant returns fewer than
-        MIN_QDRANT_RESULTS results above the threshold.
+        """Return up to TOP_K examples, most shared words first (ties keep file order).
 
         Args:
             natural_language: The user's natural language query string.
 
         Returns:
-            List of FewShotExample ordered by relevance (most similar first).
-            Always returns between 1 and few_shot_top_k examples.
+            List of FewShotExample with ``score`` set to the shared-word count.
         """
-        if self._client is None:
-            logger.warning(
-                "FewShotSelector.startup() not called — using fallback only."
-            )
-            return self._fallback[: self._settings.few_shot_top_k]
-
-        # Embed the query
-        try:
-            vector = _embed(natural_language, self._settings)
-        except Exception as exc:
-            logger.warning(
-                "Embedding failed (%s) — using fallback examples.", exc
-            )
-            return self._fallback[: self._settings.few_shot_top_k]
-
-        # Search Qdrant
-        try:
-            hits = self._client.search(
-                collection_name=FEW_SHOT_COLLECTION,
-                query_vector=vector,
-                limit=self._settings.few_shot_top_k,
-                score_threshold=self._settings.few_shot_similarity_threshold,
-                with_payload=True,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Qdrant search failed (%s) — using fallback examples.", exc
-            )
-            return self._fallback[: self._settings.few_shot_top_k]
-
-        qdrant_examples = [
-            FewShotExample(
-                nl=hit.payload["nl"],
-                kql=hit.payload["kql"],
-                score=hit.score,
-            )
-            for hit in hits
+        words = _words(natural_language)
+        scored = [
+            FewShotExample(nl=ex.nl, kql=ex.kql, score=float(len(words & _words(ex.nl))))
+            for ex in self._examples
         ]
-
-        if len(qdrant_examples) >= self._settings.few_shot_min_qdrant_results:
-            logger.debug(
-                "Qdrant returned %d examples above threshold.",
-                len(qdrant_examples),
-            )
-            return qdrant_examples
-
-        # Not enough Qdrant results — use fallback
-        logger.info(
-            "Qdrant returned %d results (below MIN=%d) — using fallback.",
-            len(qdrant_examples),
-            self._settings.few_shot_min_qdrant_results,
-        )
-        return self._fallback[: self._settings.few_shot_top_k]
+        scored.sort(key=lambda ex: ex.score or 0.0, reverse=True)
+        return scored[: self._top_k]
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _words(text: str) -> set[str]:
+    """Lower-case words of 3+ characters (drops 'a', 'of', 'in', ...)."""
+    return {w for w in re.findall(r"[a-z0-9_.-]+", text.lower()) if len(w) >= 3}
 
-def _embed(text: str, settings: FewShotSettings) -> list[float]:
-    """Get a vector embedding for text using Ollama nomic-embed-text.
+
+def _load_examples(path: Path) -> list[FewShotExample]:
+    """Load NLQ→KQL pairs from a JSONL file; missing file or bad lines are skipped.
 
     Args:
-        text: The natural language string to embed.
-        settings: FewShotSettings with ollama_url and embed_model.
+        path: Path to the JSONL file with ``nl`` and ``kql`` keys per line.
 
     Returns:
-        List of 768 floats representing the semantic meaning of text.
-
-    Raises:
-        RuntimeError: If Ollama is unreachable or returns an error.
-    """
-    try:
-        response = httpx.post(
-            f"{settings.ollama_url}/api/embeddings",
-            json={"model": settings.embed_model, "prompt": text},
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        return response.json()["embedding"]
-    except httpx.ConnectError as exc:
-        raise RuntimeError(
-            f"Cannot reach Ollama at {settings.ollama_url}. "
-            "Is Ollama running? Run: ollama serve"
-        ) from exc
-    except Exception as exc:
-        raise RuntimeError(f"Embedding request failed: {exc}") from exc
-
-
-def _load_fallback_examples(path: Path) -> list[FewShotExample]:
-    """Load NLQ→KQL pairs from the fallback JSONL file.
-
-    Args:
-        path: Path to the fallback_examples.jsonl file.
-
-    Returns:
-        List of FewShotExample with score=None (static examples).
+        List of FewShotExample with score=None.
     """
     if not path.exists():
-        logger.error("Fallback examples file not found at %s", path)
+        logger.warning("Few-shot examples file not found: %s", path)
         return []
-
     examples = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-                examples.append(
-                    FewShotExample(nl=obj["nl"], kql=obj["kql"], score=None)
-                )
-            except (json.JSONDecodeError, KeyError) as exc:
-                logger.warning("Skipping malformed fallback line: %s", exc)
-
-    logger.info("Loaded %d fallback examples from %s", len(examples), path.name)
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            obj = json.loads(line)
+            examples.append(FewShotExample(nl=obj["nl"], kql=obj["kql"]))
+        except (json.JSONDecodeError, KeyError):
+            continue
     return examples

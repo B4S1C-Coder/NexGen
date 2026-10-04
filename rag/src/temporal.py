@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import math
-from datetime import datetime, timezone
 
 from qdrant_client.http import models
 
 from nexgen_shared.schemas import KnowledgeRequest
-from .preprocessor import RankedChunk
 
 
 class TemporalFilter:
@@ -32,28 +29,3 @@ class TemporalFilter:
                 )
             ]
         )
-
-    def apply_recency_decay(self, chunks: list[RankedChunk], lambda_: float = 0.02) -> list[RankedChunk]:
-        """Apply exponential recency decay to raw chunk scores in place.
-
-        Parameters:
-            chunks: A list of RankedChunks.
-            lambda_: The decay constant, defaults to 0.02 (soft decay).
-
-        Returns:
-            The mutated list of RankedChunks.
-        """
-        now_utc = datetime.now(timezone.utc)
-        for chunk in chunks:
-            # Calculate difference in days. Ensure chunk.metadata.created_at is timezone-aware.
-            created_at = chunk.metadata.created_at
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
-            
-            delta = now_utc - created_at
-            delta_days = max(0.0, delta.total_seconds() / 86400.0)
-            
-            # Apply decay: score_weighted = raw_score * exp(-λ * Δdays)
-            chunk.score = chunk.score * math.exp(-lambda_ * delta_days)
-            
-        return chunks

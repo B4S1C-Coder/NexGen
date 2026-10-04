@@ -1,98 +1,72 @@
+"""Step 4: check we have enough data, then shrink the logs to fit the token budget."""
+
+from __future__ import annotations
+
 import tiktoken
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+
+from nexgen_shared.schemas import KnowledgeResult, LogHit, LogRetrievalResult, RCASynthesisInput
 
 from src.intent import IntentResult
-from nexgen_shared.schemas import LogRetrievalResult, KnowledgeResult, LogHit, KnowledgeChunk
 
-class RCASynthesisInput(BaseModel):
-    query_id: str
-    original_query: str
-    log_evidence: List[LogHit] = []
-    knowledge_context: List[KnowledgeChunk] = []
-    reasoning_trace: List[str] = []
+
+def log_line(hit: LogHit) -> str:
+    """One log hit as a single readable line."""
+    time = hit.timestamp.strftime("%H:%M:%S") if hit.timestamp else "?"
+    return f"{time} {hit.service} {hit.level} {hit.message}"
+
 
 class ContextAssembler:
-    """
-    Validates execution results and parses them efficiently via token pruning & 
-    LongContextReorder preventing context poisoning before hitting the reasoning loop.
-    """
-    def __init__(self, max_tokens: int = 4000):
+    """Merges the fetched logs and docs into one RCASynthesisInput."""
+
+    def __init__(self, max_tokens: int = 6000) -> None:
         self.max_tokens = max_tokens
-        try:
-            self.tokenizer = tiktoken.get_encoding("cl100k_base")
-        except Exception:
-            self.tokenizer = None
+        self.encoder = tiktoken.get_encoding("cl100k_base")
 
-    def _count_tokens(self, text: str) -> int:
-        if self.tokenizer:
-            return len(self.tokenizer.encode(text))
-        # Fallback heuristic
-        return len(text) // 4
+    def count_tokens(self, hits: list[LogHit]) -> int:
+        """Number of tokens the log lines would take in a prompt."""
+        return sum(len(self.encoder.encode(log_line(h))) for h in hits)
 
-    def is_context_sufficient(self, intent: IntentResult, logs: Optional[LogRetrievalResult]) -> bool:
+    def is_context_sufficient(
+        self, intent: IntentResult, logs: LogRetrievalResult | None, docs: KnowledgeResult | None
+    ) -> bool:
         """
-        Determines if there is enough data fetched to proceed with RCASynthesis.
-        If logs were required but returned 0 hits, context is flagged insufficient.
+        Logs are required whenever the intent asks for them (no logs = no evidence).
+        Docs are only required for docs-only questions; otherwise they are a bonus.
         """
-        if intent.logs_needed:
-            if not logs or not logs.hits or len(logs.hits) == 0:
-                return False
+        if intent.logs_needed and (logs is None or not logs.hits):
+            return False
+        if intent.docs_needed and not intent.logs_needed and (docs is None or not docs.chunks):
+            return False
         return True
 
-    def assemble(self, original_query: str, query_id: str,
-                 log_result: Optional[LogRetrievalResult], 
-                 knowledge_result: Optional[KnowledgeResult], 
-                 intent: IntentResult) -> RCASynthesisInput:
-        
-        log_evidence = []
-        if log_result and log_result.hits:
-            log_evidence = self._prune_and_reorder_logs(log_result.hits)
+    def assemble(
+        self, query_id: str, question: str, logs: LogRetrievalResult | None, docs: KnowledgeResult | None
+    ) -> RCASynthesisInput:
+        """
+        Drop repeated log messages (same service, level and text), keeping the first,
+        then keep log lines in time order until the token budget is used up.
+        """
+        unique: list[LogHit] = []
+        seen: set[tuple[str | None, str | None, str | None]] = set()
+        for hit in sorted(logs.hits if logs else [], key=lambda h: h.timestamp.timestamp() if h.timestamp else 0.0):
+            key = (hit.service, hit.level, hit.message)
+            if key not in seen:
+                seen.add(key)
+                unique.append(hit)
 
-        knowledge_context = []
-        if knowledge_result and knowledge_result.chunks:
-            # We assume the external RAG module (via the Mock compactor) handled knowledge pruning already
-            knowledge_context = knowledge_result.chunks
+        kept: list[LogHit] = []
+        used = 0
+        for hit in unique:
+            cost = self.count_tokens([hit])
+            if used + cost > self.max_tokens:
+                break
+            kept.append(hit)
+            used += cost
 
         return RCASynthesisInput(
             query_id=query_id,
-            original_query=original_query,
-            log_evidence=log_evidence,
-            knowledge_context=knowledge_context
+            original_query=question,
+            log_evidence=kept,
+            knowledge_context=docs.chunks if docs else [],
+            reasoning_trace=[],
         )
-
-    def _prune_and_reorder_logs(self, hits: List[LogHit]) -> List[LogHit]:
-        """
-        Prunes raw logs sliding-window style ensuring we don't breach MAX_TOKENS.
-        Applies LongContextReorder to the trimmed remainder.
-        """
-        current_tokens = 0
-        trimmed_hits = []
-        
-        for hit in hits:
-            hit_str = f"{hit.timestamp} {hit.service} {hit.level} {hit.message}"
-            tokens = self._count_tokens(hit_str)
-            if current_tokens + tokens > self.max_tokens:
-                break
-            trimmed_hits.append(hit)
-            current_tokens += tokens
-            
-        if not trimmed_hits:
-            return []
-
-        # Assuming sequence is naturally sorted by age, LongContextReorder anchors context edges
-        ranked = list(trimmed_hits)
-        
-        reordered = [None] * len(ranked)
-        left = 0
-        right = len(ranked) - 1
-        
-        for i, hit in enumerate(ranked):
-            if i % 2 == 0:
-                reordered[left] = hit
-                left += 1
-            else:
-                reordered[right] = hit
-                right -= 1
-                
-        return reordered

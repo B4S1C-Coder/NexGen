@@ -1,4 +1,4 @@
-"""Unit tests for the MultiAgentDebate module (P3-R2).
+"""Unit tests for the MultiAgentDebate module.
 
 All tests mock the LLM calls via httpx so no Ollama server is needed.
 """
