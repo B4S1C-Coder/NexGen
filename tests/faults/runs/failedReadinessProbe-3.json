@@ -1,0 +1,74 @@
+{
+  "run_id": "failedReadinessProbe-3",
+  "flag": "failedReadinessProbe",
+  "variant": "on",
+  "accepted": [
+    "cart"
+  ],
+  "question": "Why are frontend requests failing?",
+  "started_utc": "2026-10-04T20:21:04.533516+00:00",
+  "answer": "cart",
+  "correct": true,
+  "seconds": 1.59,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 5 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "failedReadinessProbe-3",
+    "root_cause_summary": "The cart service health check failure at 20:21:35 caused frontend requests to fail.",
+    "confidence": 0.7,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:cart",
+        "snippet": "Health check {HealthCheckName} with status {HealthStatus} completed after {ElapsedMilliseconds}ms with message '{HealthCheckDescription}'"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:",
+        "snippet": "Health check {HealthCheckName} with status {HealthStatus} completed after {ElapsedMilliseconds}ms with message '{HealthCheckDescription}'"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of cart."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 5 lines | cart: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T20:24:06.142097Z"
+  },
+  "logs": {
+    "total_log_lines": 5713,
+    "problem_lines": [
+      [
+        "2026-10-04T20:21:35.018718600Z",
+        "cart",
+        "ERROR",
+        "Health check {HealthCheckName} with status {HealthStatus} completed after {ElapsedMilliseconds}ms with message '{HealthCheckDescription}'"
+      ],
+      [
+        "2026-10-04T20:22:02.208798800Z",
+        "cart",
+        "ERROR",
+        "Health check {HealthCheckName} with status {HealthStatus} completed after {ElapsedMilliseconds}ms with message '{HealthCheckDescription}'"
+      ],
+      [
+        "2026-10-04T20:22:32.209306100Z",
+        "cart",
+        "ERROR",
+        "Health check {HealthCheckName} with status {HealthStatus} completed after {ElapsedMilliseconds}ms with message '{HealthCheckDescription}'"
+      ],
+      [
+        "2026-10-04T20:23:02.218663500Z",
+        "cart",
+        "ERROR",
+        "Health check {HealthCheckName} with status {HealthStatus} completed after {ElapsedMilliseconds}ms with message '{HealthCheckDescription}'"
+      ],
+      [
+        "2026-10-04T20:23:32.208886600Z",
+        "cart",
+        "ERROR",
+        "Health check {HealthCheckName} with status {HealthStatus} completed after {ElapsedMilliseconds}ms with message '{HealthCheckDescription}'"
+      ]
+    ]
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "run_id": "paymentFailure-3",
+  "flag": "paymentFailure",
+  "variant": "100%",
+  "accepted": [
+    "payment"
+  ],
+  "question": "Why are checkouts failing?",
+  "started_utc": "2026-10-04T20:26:06.396499+00:00",
+  "answer": "payment",
+  "correct": true,
+  "seconds": 1.68,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 15 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "paymentFailure-3",
+    "root_cause_summary": "The checkout failures are caused by the payment service, which logged \"Payment request failed. Invalid token. demo.user_context.loyalty_level=gold\" at 20:26:09 UTC, propagating the error to checkout.",
+    "confidence": 0.7,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:payment",
+        "snippet": "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:<HASH>",
+        "snippet": "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of payment."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 15 lines | payment: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T20:29:08.097967Z"
+  },
+  "logs": {
+    "total_log_lines": 5810,
+    "problem_lines": [
+      [
+        "2026-10-04T20:26:09.126000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:26:09.128000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:26:44.551000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:27:12.293000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:27:17.866000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:27:28.546000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:28:03.010000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:28:13.265000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:28:15.349000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:28:23.860000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:28:32.762000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:28:51.136000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:28:51.448000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:28:54.301000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ],
+      [
+        "2026-10-04T20:29:03.084000000Z",
+        "payment",
+        "WARN",
+        "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold"
+      ]
+    ]
+  }
+}

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from nexgen_shared.errors import E008TopologyVerificationRejected
 from nexgen_shared.schemas import RCASynthesisInput
 
-from src.reasoner import Hypothesis, is_problem
+from src.reasoner import Hypothesis, is_problem, names
 from src.topology import Topology
 
 
@@ -45,8 +45,8 @@ class ValidatorAgent:
             return Verdict(accepted=False, reason=f"{culprit} first failed after {symptom} did")
 
         mentioned = any(
-            culprit == h.service or culprit in (h.message or "").lower() for h in context.log_evidence
-        ) or any(culprit in c.content.lower() for c in context.knowledge_context)
+            culprit == h.service or names(h.message or "", culprit) for h in context.log_evidence
+        ) or any(names(c.content, culprit) for c in context.knowledge_context)
         if not mentioned:
             return Verdict(accepted=False, reason=f"no log line or doc mentions {culprit}")
 

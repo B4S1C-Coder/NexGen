@@ -184,8 +184,9 @@ class SchemaLinker:
         new_cache: dict[str, list[FieldMeta]] = {}
 
         for index_name, mapping_data in response.items():
-            # Skip Elasticsearch's own internal system indices
-            if index_name.startswith("."):
+            # Skip Elasticsearch's own system indices (.kibana, .security-*), but keep
+            # data-stream backing indices (.ds-logs-*): that is where modern log setups live.
+            if index_name.startswith(".") and not index_name.startswith(".ds-"):
                 continue
 
             properties = (
@@ -288,10 +289,8 @@ class SchemaLinker:
         1. Raise E001 if the cache is empty (ES was never reachable).
         2. Match index_hints against cached index names using wildcards.
         3. Fall back to ALL cached indices if no hint matches.
-        4. Collect all FieldMeta from matched indices, deduplicating
-           by field name.
-        5. Merge any known_fields from the request's schema_context
-           that are not already in the cache.
+        4. Put the request's known_fields first (the prompt shows only
+           the first fields), then every other field, deduplicated by name.
 
         Args:
             natural_language: The user's question (unused here; kept so every
@@ -327,23 +326,26 @@ class SchemaLinker:
             )
             matched_indices = list(self._cache.keys())
 
-        # --- Step 2: collect fields, deduplicated by name ---------------
-        seen: set[str] = set()
-        relevant_fields: list[FieldMeta] = []
-
+        # --- Step 2: fields the caller says matter come first ------------
+        # The prompt only shows the first fields, and real indices have 100+
+        # of them, so the request's known_fields must not be pushed past the cut.
+        by_name: dict[str, FieldMeta] = {}
         for index_name in matched_indices:
             for fm in self._cache.get(index_name, []):
-                if fm.name not in seen:
-                    seen.add(fm.name)
-                    relevant_fields.append(fm)
+                by_name.setdefault(fm.name, fm)
 
-        # --- Step 3: merge known_fields from the request ----------------
+        relevant_fields: list[FieldMeta] = []
+        seen: set[str] = set()
         for kf in schema_context_from_request.get("known_fields", []):
             if kf not in seen:
-                relevant_fields.append(
-                    FieldMeta(name=kf, es_type="keyword", sample_values=[])
-                )
+                relevant_fields.append(by_name.get(kf) or FieldMeta(name=kf, es_type="keyword", sample_values=[]))
                 seen.add(kf)
+
+        # --- Step 3: then every other field, deduplicated by name ---------
+        for name, fm in by_name.items():
+            if name not in seen:
+                relevant_fields.append(fm)
+                seen.add(name)
 
         return SchemaContext(
             selected_indices=matched_indices,

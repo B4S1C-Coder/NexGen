@@ -1,0 +1,183 @@
+{
+  "run_id": "productCatalogLockContention-3",
+  "flag": "productCatalogLockContention",
+  "variant": "on",
+  "accepted": [
+    "astronomy-db",
+    "product-catalog"
+  ],
+  "question": "Why is the frontend slow?",
+  "started_utc": "2026-10-04T21:01:18.884986+00:00",
+  "answer": "frontend",
+  "correct": false,
+  "seconds": 2.72,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 23 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "productCatalogLockContention-3",
+    "root_cause_summary": "The frontend became slow because API requests started failing at 21:02:33\u202fUTC, as indicated by the \"API request failed\" error.",
+    "confidence": 0.25,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:frontend",
+        "snippet": "API request failed"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:<HASH>",
+        "snippet": "API request failed"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of frontend."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 23 lines | recommendation: rejected (recommendation first failed after frontend did) | load-generator: rejected ([E008] frontend does not depend on load-generator) | frontend: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T21:04:21.642139Z"
+  },
+  "logs": {
+    "total_log_lines": 2920,
+    "problem_lines": [
+      [
+        "2026-10-04T21:01:39.519616256Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T21:01:39.519616256Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T21:02:33.408000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.411000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.416000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.418000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.421000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.424000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.426000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.428000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.430000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.603000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.611634944Z",
+        "recommendation",
+        "ERROR",
+        "Exception calling application: <_InactiveRpcError of RPC that terminated with:\n\tstatus = StatusCode.INTERNAL\n\tdetails = \"failed to load products: failed to query products: dial tcp: lookup astronomy-db on 127.0.0.11:53: server misbehaving\"\n\tdebug_error_string = \"INTERNAL:failed to load products: fai"
+      ],
+      [
+        "2026-10-04T21:02:33.616000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.654000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:33.704966656Z",
+        "recommendation",
+        "ERROR",
+        "Exception calling application: <_InactiveRpcError of RPC that terminated with:\n\tstatus = StatusCode.INTERNAL\n\tdetails = \"failed to load products: failed to query products: dial tcp: lookup astronomy-db on 127.0.0.11:53: server misbehaving\"\n\tdebug_error_string = \"INTERNAL:failed to load products: fai"
+      ],
+      [
+        "2026-10-04T21:02:33.708000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:34.014674176Z",
+        "recommendation",
+        "ERROR",
+        "Exception calling application: <_InactiveRpcError of RPC that terminated with:\n\tstatus = StatusCode.INTERNAL\n\tdetails = \"failed to load products: failed to query products: dial tcp 172.18.0.7:5432: connect: connection refused\"\n\tdebug_error_string = \"INTERNAL:failed to load products: failed to query "
+      ],
+      [
+        "2026-10-04T21:02:34.018000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T21:02:59.121161728Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T21:02:59.121161728Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T21:03:39.478798336Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T21:03:39.478798336Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ]
+    ]
+  }
+}

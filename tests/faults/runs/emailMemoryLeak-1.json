@@ -1,0 +1,97 @@
+{
+  "run_id": "emailMemoryLeak-1",
+  "flag": "emailMemoryLeak",
+  "variant": "10000x",
+  "accepted": [
+    "email"
+  ],
+  "question": "Why are checkouts failing or slow?",
+  "started_utc": "2026-10-04T18:24:48.229077+00:00",
+  "answer": "email",
+  "correct": true,
+  "seconds": 2.21,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 8 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "emailMemoryLeak-1",
+    "root_cause_summary": "Checkouts are failing or slow because the email service is failing to send order confirmations, causing errors in the checkout flow.",
+    "confidence": 0.7,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:email",
+        "snippet": "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:",
+        "snippet": "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:",
+        "snippet": "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": dial tcp <IP_ADDRESS>:6060: connect: connection refused"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of email."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 8 lines | email: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T18:27:50.477994Z"
+  },
+  "logs": {
+    "total_log_lines": 5627,
+    "problem_lines": [
+      [
+        "2026-10-04T18:25:07.925748451Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T18:25:30.815836195Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T18:25:52.045653177Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T18:26:27.647147408Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T18:26:36.233152741Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T18:27:00.697192542Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T18:27:00.775153359Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": dial tcp 172.18.0.20:6060: connect: connection refused"
+      ],
+      [
+        "2026-10-04T18:27:28.275158396Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ]
+    ]
+  }
+}

@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.executor import ElasticsearchExecutor, ExecutorResult
+from src.executor import ElasticsearchExecutor, ExecutorResult, flatten
 from src.schema_linker import FieldMeta, SchemaContext
 from nexgen_shared.errors import E003ElasticsearchTimeout
 
@@ -285,3 +285,19 @@ class TestExecutorErrorHandling:
             await executor.execute(
                 'service.name: "auth"', make_schema_ctx(), max_results=10
             )
+
+def test_flatten_turns_nested_fields_into_dotted_keys() -> None:
+    doc = {"@timestamp": "t", "service": {"name": "cart"}, "log": {"level": "ERROR"}, "message": "m"}
+    assert flatten(doc) == {"@timestamp": "t", "service.name": "cart", "log.level": "ERROR", "message": "m"}
+
+
+@pytest.mark.asyncio
+async def test_results_sorted_oldest_first() -> None:
+    executor = ElasticsearchExecutor()
+    mock_client = AsyncMock()
+    mock_client.search = AsyncMock(return_value=make_es_response([], total=0))
+    executor._client = mock_client
+
+    await executor.execute('log.level: "ERROR"', make_schema_ctx(), max_results=10)
+
+    assert mock_client.search.call_args.kwargs["sort"] == [{"@timestamp": {"order": "asc", "unmapped_type": "date"}}]

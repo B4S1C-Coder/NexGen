@@ -13,14 +13,14 @@ from nexgen_shared.schemas import KnowledgeChunk, LogHit, RCAEvidenceItem, RCARe
 from src.context import log_line
 from src.intent import IntentResult
 from src.llm import ask_json, load_prompt
-from src.reasoner import Hypothesis, is_problem
+from src.reasoner import Hypothesis, is_problem, names
 
 logger = logging.getLogger(__name__)
 
 
 def mentions(hit: LogHit, service: str) -> bool:
     """True if the log line comes from ``service`` or names it."""
-    return hit.service == service or service in (hit.message or "").lower()
+    return hit.service == service or names(hit.message or "", service)
 
 
 class RCASynthesiser:
@@ -53,7 +53,7 @@ class RCASynthesiser:
         else:
             culprit = hypothesis.culprit_service
             log_support = sum(mentions(h, culprit) for h in problems) / len(problems) if problems else 0.0
-            doc_support = sum(culprit in c.content.lower() for c in docs) / len(docs) if docs else 0.0
+            doc_support = sum(names(c.content, culprit) for c in docs) / len(docs) if docs else 0.0
             topology_ok = 1.0
         return round(0.6 * log_support + 0.3 * doc_support + 0.1 * topology_ok, 2)
 
@@ -75,7 +75,7 @@ class RCASynthesiser:
 
         if hypothesis is not None:
             related = [h for h in context.log_evidence if is_problem(h) and mentions(h, hypothesis.culprit_service)]
-            docs = [c for c in context.knowledge_context if hypothesis.culprit_service in c.content.lower()]
+            docs = [c for c in context.knowledge_context if names(c.content, hypothesis.culprit_service)]
         else:
             related, docs = context.log_evidence, context.knowledge_context
         evidence = []
@@ -102,7 +102,7 @@ class RCASynthesiser:
         """The first doc that mentions the culprit, else the first doc."""
         if hypothesis is not None:
             for chunk in chunks:
-                if hypothesis.culprit_service in chunk.content.lower():
+                if names(chunk.content, hypothesis.culprit_service):
                     return chunk
         return chunks[0] if chunks else None
 

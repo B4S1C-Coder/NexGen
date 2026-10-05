@@ -11,7 +11,7 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from nexgen_shared.schemas import RCAReport, UserQuery
+from nexgen_shared.schemas import KnowledgeResult, LogRetrievalResult, RCAReport, UserQuery
 
 from src.context import ContextAssembler
 from src.executor import DAGExecutor
@@ -84,6 +84,16 @@ class MasterOrchestrator:
         self.validator = ValidatorAgent(self.topology)
         self.synthesiser = RCASynthesiser(llm, model)
 
+    @staticmethod
+    def _missing_reason(intent: IntentResult, logs: LogRetrievalResult | None, docs: KnowledgeResult | None) -> str:
+        """Say which required evidence is missing (not an unrelated failure, e.g. RAG down when logs were empty)."""
+        problems = []
+        if intent.logs_needed and (logs is None or not logs.hits):
+            problems.append(logs.error if logs is not None and logs.error else "no matching log lines were found")
+        if intent.docs_needed and not intent.logs_needed and (docs is None or not docs.chunks):
+            problems.append(docs.error if docs is not None and docs.error else "no matching documents were found")
+        return "; ".join(problems)
+
     async def execute_query(self, query: UserQuery, progress: ProgressCallback | None = None) -> RCAReport:
         """Answer one question. Never raises: failures become a zero-confidence report."""
         try:
@@ -124,6 +134,8 @@ class MasterOrchestrator:
 
         # 4. Context
         context = self.context.assemble(query.query_id, query.raw_text, logs, docs)
+        if logs is not None:  # show which log search was run, so a bad one is easy to spot
+            context.reasoning_trace.append(f"log search: {logs.kql_generated or '-'} -> {len(logs.hits)} lines")
         result = RunResult(
             report=low_confidence_report(query.query_id, "not run"),
             intent=intent,
@@ -132,9 +144,8 @@ class MasterOrchestrator:
         )
 
         if not self.context.is_context_sufficient(intent, logs, docs):
-            errors = [r.error for r in (logs, docs) if r is not None and r.error]
-            reason = "; ".join(errors) or "no matching logs or documents were found"
-            result.report = low_confidence_report(query.query_id, reason)
+            result.report = low_confidence_report(query.query_id, self._missing_reason(intent, logs, docs))
+            result.report.reasoning_trace_summary = " | ".join(context.reasoning_trace + [result.report.reasoning_trace_summary])
         else:
             # 5. Reason + validate: take the first candidate that passes all checks
             if intent.logs_needed and not intent.is_quantitative:

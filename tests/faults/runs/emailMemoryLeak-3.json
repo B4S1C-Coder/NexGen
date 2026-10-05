@@ -1,0 +1,92 @@
+{
+  "run_id": "emailMemoryLeak-3",
+  "flag": "emailMemoryLeak",
+  "variant": "10000x",
+  "accepted": [
+    "email"
+  ],
+  "question": "Why are checkouts failing or slow?",
+  "started_utc": "2026-10-04T20:36:10.920588+00:00",
+  "answer": "email",
+  "correct": true,
+  "seconds": 2.14,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 8 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "emailMemoryLeak-3",
+    "root_cause_summary": "Checkouts are failing because the email service is returning EOF errors when sending order confirmations, which propagates to the checkout service.",
+    "confidence": 0.7,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:email",
+        "snippet": "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:",
+        "snippet": "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of email."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 8 lines | email: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T20:39:13.083922Z"
+  },
+  "logs": {
+    "total_log_lines": 6083,
+    "problem_lines": [
+      [
+        "2026-10-04T20:36:36.689410377Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T20:36:43.016990646Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T20:37:36.573240475Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T20:37:52.248749401Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T20:37:59.656514007Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T20:38:34.083970782Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T20:38:57.405141710Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T20:39:08.168758704Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ]
+    ]
+  }
+}

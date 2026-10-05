@@ -1,0 +1,105 @@
+{
+  "run_id": "productCatalogLockContention-2",
+  "flag": "productCatalogLockContention",
+  "variant": "on",
+  "accepted": [
+    "astronomy-db",
+    "product-catalog"
+  ],
+  "question": "Why is the frontend slow?",
+  "started_utc": "2026-10-04T19:55:22.805483+00:00",
+  "answer": "cart",
+  "correct": false,
+  "seconds": 2.57,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 10 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "productCatalogLockContention-2",
+    "root_cause_summary": "The frontend slowdown is caused by a timeout in the cart service when adding to cart, which delays the response to the frontend.",
+    "confidence": 0.7,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:cart",
+        "snippet": "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:<HASH>",
+        "snippet": "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of cart."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 10 lines | cart: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T19:58:25.421829Z"
+  },
+  "logs": {
+    "total_log_lines": 2647,
+    "problem_lines": [
+      [
+        "2026-10-04T19:55:38.900961792Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T19:55:38.900961792Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T19:56:30.387814912Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T19:56:30.387814912Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T19:56:59.073075712Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T19:56:59.073075712Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T19:57:39.377249280Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T19:57:39.377249280Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T19:58:21.456605696Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ],
+      [
+        "2026-10-04T19:58:21.456605696Z",
+        "load-generator",
+        "ERROR",
+        "Error in add to cart task: Timeout 15000ms exceeded while waiting for event \"response\"\n=========================== logs ===========================\nwaiting for event \"response\"\n============================================================"
+      ]
+    ]
+  }
+}

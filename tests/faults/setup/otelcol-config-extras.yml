@@ -1,0 +1,34 @@
+# NexGen evaluation: a separate logs pipeline that ships the shop services logs to
+# NexGen Elasticsearch in ECS layout (@timestamp, service.name, log.level, message).
+# The demo own logs pipeline is left unchanged.
+exporters:
+  elasticsearch/nexgen:
+    endpoints: [http://nexgen-es:9200]
+    logs_index: logs-nexgen-default
+    sending_queue:          # write asynchronously, so a slow sender never drops log lines
+      enabled: true
+      queue_size: 10000
+      batch:
+        flush_timeout: 1s
+
+processors:
+  # The collector self-monitoring logs are not part of the app (and here mostly report demo
+  # components that are not started, such as Kafka), so they are left out.
+  filter/nexgen:
+    logs:
+      log_record:
+        - resource.attributes["service.name"] == "otelcol-contrib"
+  transform/nexgen:
+    log_statements:
+      # this collector version picks the Elasticsearch document layout from a scope attribute
+      - set(scope.attributes["elastic.mapping.mode"], "ecs")
+      - set(log.severity_text, "ERROR") where log.severity_number >= SEVERITY_NUMBER_ERROR
+      - set(log.severity_text, "WARN") where log.severity_number >= SEVERITY_NUMBER_WARN and log.severity_number < SEVERITY_NUMBER_ERROR
+      - set(log.severity_text, "INFO") where log.severity_number < SEVERITY_NUMBER_WARN
+
+service:
+  pipelines:
+    logs/nexgen:
+      receivers: [otlp]
+      processors: [resource_detection, memory_limiter, transform/sanitize_logs, filter/nexgen, transform/nexgen]
+      exporters: [elasticsearch/nexgen]

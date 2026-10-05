@@ -1,0 +1,80 @@
+{
+  "run_id": "paymentUnreachable-1",
+  "flag": "paymentUnreachable",
+  "variant": "on",
+  "accepted": [
+    "payment"
+  ],
+  "question": "Why are checkouts failing?",
+  "started_utc": "2026-10-04T18:19:45.703340+00:00",
+  "answer": "checkout",
+  "correct": false,
+  "seconds": 2.24,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"WARN\" OR \"ERROR\") -> 6 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "paymentUnreachable-1",
+    "root_cause_summary": "Checkouts are failing because the checkout service returned an error \u201cCheckout failed to place order\u201d, first observed at 18:19:59 UTC.",
+    "confidence": 0.7,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:checkout",
+        "snippet": "Checkout failed to place order"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:<HASH>",
+        "snippet": "Checkout failed to place order"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of checkout."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"WARN\" OR \"ERROR\") -> 6 lines | frontend: rejected ([E008] checkout does not depend on frontend) | checkout: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T18:22:47.974973Z"
+  },
+  "logs": {
+    "total_log_lines": 5680,
+    "problem_lines": [
+      [
+        "2026-10-04T18:19:59.962000000Z",
+        "frontend",
+        "ERROR",
+        "Checkout failed to place order"
+      ],
+      [
+        "2026-10-04T18:20:39.078000000Z",
+        "frontend",
+        "ERROR",
+        "Checkout failed to place order"
+      ],
+      [
+        "2026-10-04T18:20:49.852000000Z",
+        "frontend",
+        "ERROR",
+        "Checkout failed to place order"
+      ],
+      [
+        "2026-10-04T18:20:55.277000000Z",
+        "frontend",
+        "ERROR",
+        "Checkout failed to place order"
+      ],
+      [
+        "2026-10-04T18:22:12.300000000Z",
+        "frontend",
+        "ERROR",
+        "Checkout failed to place order"
+      ],
+      [
+        "2026-10-04T18:22:43.432000000Z",
+        "frontend",
+        "ERROR",
+        "Checkout failed to place order"
+      ]
+    ]
+  }
+}

@@ -221,6 +221,17 @@ class TestLink:
         assert "custom.field" in names
 
     @pytest.mark.asyncio
+    async def test_known_fields_come_first_even_in_wide_indices(self) -> None:
+        """With 100+ fields, the caller's known_fields must lead the list."""
+        many = [FieldMeta(f"attr.f{i:03d}", "keyword") for i in range(150)]
+        linker = linker_with_cache({"logs": many + [FieldMeta("log.level", "keyword")]})
+        result = await linker.link(
+            "errors", ["logs"], {"known_fields": ["log.level", "message"], "value_samples": {}},
+        )
+        assert [f.name for f in result.relevant_fields][:2] == ["log.level", "message"]
+        assert result.relevant_fields[0].es_type == "keyword"  # real type kept from the cache
+
+    @pytest.mark.asyncio
     async def test_fields_deduplicated_across_indices(self) -> None:
         """Same field name in two indices must appear only once in result."""
         shared = FieldMeta("service.name", "keyword")
@@ -287,3 +298,24 @@ class TestCacheStatus:
         assert status["is_stale"] is False
         assert status["last_refreshed"] is not None
         assert status["index_count"] == 1
+
+
+class TestRefreshCacheIndexFilter:
+    """System indices are skipped; data-stream backing indices are kept."""
+
+    @pytest.mark.asyncio
+    async def test_keeps_data_stream_indices_and_skips_system_ones(self) -> None:
+        from unittest.mock import AsyncMock
+
+        linker = SchemaLinker()
+        linker._client = AsyncMock()
+        mapping = {"mappings": {"properties": {"message": {"type": "text"}}}}
+        linker._client.indices.get_mapping = AsyncMock(return_value={
+            ".ds-logs-nexgen-default-2026.10.04-000001": mapping,
+            ".kibana_1": mapping,
+            "payments-logs": mapping,
+        })
+
+        await linker.refresh_cache()
+
+        assert sorted(linker._cache) == [".ds-logs-nexgen-default-2026.10.04-000001", "payments-logs"]

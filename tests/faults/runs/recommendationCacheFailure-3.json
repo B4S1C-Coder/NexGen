@@ -1,0 +1,56 @@
+{
+  "run_id": "recommendationCacheFailure-3",
+  "flag": "recommendationCacheFailure",
+  "variant": "on",
+  "accepted": [
+    "recommendation"
+  ],
+  "question": "Why are frontend requests failing?",
+  "started_utc": "2026-10-04T20:16:02.212235+00:00",
+  "answer": "frontend",
+  "correct": false,
+  "seconds": 2.1,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 2 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "recommendationCacheFailure-3",
+    "root_cause_summary": "The problem started in frontend itself: \"API request failed\" first appeared at 20:18:08 UTC.",
+    "confidence": 0.4,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:frontend",
+        "snippet": "API request failed"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:<HASH>",
+        "snippet": "API request failed"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of frontend."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 2 lines | recommendation: rejected (recommendation first failed after frontend did) | frontend: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T20:19:04.330815Z"
+  },
+  "logs": {
+    "total_log_lines": 5618,
+    "problem_lines": [
+      [
+        "2026-10-04T20:18:08.625000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T20:18:09.815690240Z",
+        "recommendation",
+        "WARN",
+        "Overriding of current LoggerProvider is not allowed"
+      ]
+    ]
+  }
+}

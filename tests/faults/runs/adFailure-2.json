@@ -1,0 +1,104 @@
+{
+  "run_id": "adFailure-2",
+  "flag": "adFailure",
+  "variant": "on",
+  "accepted": [
+    "ad"
+  ],
+  "question": "Why are frontend requests failing?",
+  "started_utc": "2026-10-04T18:54:59.177837+00:00",
+  "answer": "ad",
+  "correct": true,
+  "seconds": 1.9,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 10 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "adFailure-2",
+    "root_cause_summary": "ad is the most likely root cause: it first reported \"GetAds Failed with status Status{code=UNAVAILABLE, description=null, cause=null}\" at 18:55:28 UTC, and the failure then reached frontend.",
+    "confidence": 0.4,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:ad",
+        "snippet": "GetAds Failed with status Status{code=UNAVAILABLE, description=null, cause=null}"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:<HASH>",
+        "snippet": "GetAds Failed with status Status{code=UNAVAILABLE, description=null, cause=null}"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of ad."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 10 lines | ad: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T18:58:01.101613Z"
+  },
+  "logs": {
+    "total_log_lines": 5607,
+    "problem_lines": [
+      [
+        "2026-10-04T18:55:28.893052361Z",
+        "ad",
+        "WARN",
+        "GetAds Failed with status Status{code=UNAVAILABLE, description=null, cause=null}"
+      ],
+      [
+        "2026-10-04T18:55:28.894000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:56:56.601668836Z",
+        "ad",
+        "WARN",
+        "GetAds Failed with status Status{code=UNAVAILABLE, description=null, cause=null}"
+      ],
+      [
+        "2026-10-04T18:56:56.602000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:57:22.919961970Z",
+        "ad",
+        "WARN",
+        "GetAds Failed with status Status{code=UNAVAILABLE, description=null, cause=null}"
+      ],
+      [
+        "2026-10-04T18:57:22.922000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:57:23.938000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:57:23.938121708Z",
+        "ad",
+        "WARN",
+        "GetAds Failed with status Status{code=UNAVAILABLE, description=null, cause=null}"
+      ],
+      [
+        "2026-10-04T18:57:45.859480945Z",
+        "ad",
+        "WARN",
+        "GetAds Failed with status Status{code=UNAVAILABLE, description=null, cause=null}"
+      ],
+      [
+        "2026-10-04T18:57:45.860000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ]
+    ]
+  }
+}

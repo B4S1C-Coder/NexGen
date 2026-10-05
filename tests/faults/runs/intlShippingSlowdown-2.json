@@ -1,0 +1,32 @@
+{
+  "run_id": "intlShippingSlowdown-2",
+  "flag": "intlShippingSlowdown",
+  "variant": "10sec",
+  "accepted": [
+    "shipping"
+  ],
+  "question": "Why is the frontend slow?",
+  "started_utc": "2026-10-04T19:50:20.820545+00:00",
+  "answer": null,
+  "correct": false,
+  "seconds": 1.71,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"WARN\" OR \"ERROR\") -> 0 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "intlShippingSlowdown-2",
+    "root_cause_summary": "Analysis could not be completed: no matching log lines were found",
+    "confidence": 0.0,
+    "evidence": [],
+    "recommended_actions": [
+      "Check that the Query and RAG services are reachable and the question names a service."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"WARN\" OR \"ERROR\") -> 0 lines | no matching log lines were found",
+    "mttr_estimate_minutes": 0,
+    "generated_at": "2026-10-04T19:53:22.565478Z"
+  },
+  "logs": {
+    "total_log_lines": 5621,
+    "problem_lines": []
+  }
+}

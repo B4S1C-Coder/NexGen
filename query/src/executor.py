@@ -200,6 +200,9 @@ class ElasticsearchExecutor:
                 query=dsl["query"],
                 size=capped_size,
                 source=True,
+                # Oldest first: for root-cause analysis the earliest events matter most,
+                # and an unsorted capped result could silently drop them.
+                sort=[{"@timestamp": {"order": "asc", "unmapped_type": "date"}}],
             )
         except ESConnectionError as exc:
             raise E003ElasticsearchTimeout(
@@ -213,7 +216,7 @@ class ElasticsearchExecutor:
         # Extract results from ES response structure
         hits_container = response.get("hits", {})
         hit_list: list[dict] = [
-            hit.get("_source", {})
+            flatten(hit.get("_source", {}))
             for hit in hits_container.get("hits", [])
         ]
         total: int = hits_container.get("total", {}).get("value", 0)
@@ -234,3 +237,23 @@ class ElasticsearchExecutor:
             timed_out=timed_out,
             shards_failed=shards_failed,
         )
+
+
+def flatten(doc: dict, prefix: str = "") -> dict:
+    """Turn nested fields into dotted keys: {"service": {"name": "x"}} -> {"service.name": "x"}.
+
+    Args:
+        doc: An Elasticsearch ``_source`` document, possibly nested (e.g. ECS format).
+        prefix: Key prefix used while recursing.
+
+    Returns:
+        A flat dict, so callers can read ``hit["service.name"]`` either way.
+    """
+    flat: dict = {}
+    for key, value in doc.items():
+        name = f"{prefix}{key}"
+        if isinstance(value, dict):
+            flat.update(flatten(value, f"{name}."))
+        else:
+            flat[name] = value
+    return flat

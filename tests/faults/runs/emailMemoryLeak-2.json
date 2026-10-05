@@ -1,0 +1,110 @@
+{
+  "run_id": "emailMemoryLeak-2",
+  "flag": "emailMemoryLeak",
+  "variant": "10000x",
+  "accepted": [
+    "email"
+  ],
+  "question": "Why are checkouts failing or slow?",
+  "started_utc": "2026-10-04T19:30:13.284255+00:00",
+  "answer": "email",
+  "correct": true,
+  "seconds": 2.42,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 11 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "emailMemoryLeak-2",
+    "root_cause_summary": "Checkouts are failing because the email service is returning EOF errors when sending order confirmations, which propagates to the checkout service.",
+    "confidence": 0.7,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:email",
+        "snippet": "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:",
+        "snippet": "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of email."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 11 lines | email: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T19:33:15.739821Z"
+  },
+  "logs": {
+    "total_log_lines": 5878,
+    "problem_lines": [
+      [
+        "2026-10-04T19:30:27.847614965Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:30:48.804178183Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:30:56.599095879Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:31:08.106490858Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:31:22.922066793Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:31:50.991139203Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:32:27.492917544Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:32:36.016925813Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:32:49.901433812Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:32:51.865331041Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ],
+      [
+        "2026-10-04T19:32:56.592888575Z",
+        "checkout",
+        "WARN",
+        "failed to send order confirmation: failed POST to email service: Post \"http://email:6060/send_order_confirmation\": EOF"
+      ]
+    ]
+  }
+}

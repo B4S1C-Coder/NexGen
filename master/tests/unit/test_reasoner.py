@@ -39,3 +39,11 @@ async def test_llm_failure_keeps_rule_order(context):
     with patch("src.reasoner.ask_json", AsyncMock(side_effect=ValueError("bad json"))):
         ranked = await reasoner.reason(context, ["payments"])
     assert ranked[0].culprit_service == "notifications"
+
+
+def test_service_names_match_whole_words_only(hit, context):
+    reasoner = ReasonerAgent(["ad", "payments"])
+    context.log_evidence = [hit("10:00:00", "frontend", "ERROR", "failed to load ad: bad gateway")]
+    assert {h.culprit_service for h in reasoner.candidates(context, "frontend")} == {"frontend", "ad"}
+    context.log_evidence = [hit("10:00:00", "frontend", "ERROR", "failed to load page: bad gateway")]
+    assert {h.culprit_service for h in reasoner.candidates(context, "frontend")} == {"frontend"}

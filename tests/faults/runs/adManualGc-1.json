@@ -1,0 +1,278 @@
+{
+  "run_id": "adManualGc-1",
+  "flag": "adManualGc",
+  "variant": "on",
+  "accepted": [
+    "ad"
+  ],
+  "question": "Why is the frontend slow?",
+  "started_utc": "2026-10-04T18:34:51.676061+00:00",
+  "answer": "ad",
+  "correct": true,
+  "seconds": 2.23,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 40 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "adManualGc-1",
+    "root_cause_summary": "The frontend slowdown was caused by the ad service performing a manual garbage collection after the adManualGc feature flag was enabled.",
+    "confidence": 0.4,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:ad",
+        "snippet": "Feature Flag adManualGc enabled, performing a manual gc now"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:<HASH>",
+        "snippet": "Feature Flag adManualGc enabled, performing a manual gc now"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of ad."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"ERROR\" OR \"WARN\") -> 40 lines | ad: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T18:37:53.937641Z"
+  },
+  "logs": {
+    "total_log_lines": 5676,
+    "problem_lines": [
+      [
+        "2026-10-04T18:34:56.766794274Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:34:57.625000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:34:58.642000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:35:01.177000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:35:02.204000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:35:04.213000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:35:04.473000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:35:09.143666915Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:35:12.951709704Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:35:28.710687054Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:35:39.353887090Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:35:43.239514493Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:35:46.770050661Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:35:48.566896067Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:35:51.482109686Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:35:59.373000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:35:59.567000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:36:00.611000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T18:36:02.907792919Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:03.955841589Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:10.391567331Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:12.057987894Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:17.649682263Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:19.931470962Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:26.808887806Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:28.563136411Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:35.243912780Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:39.502699690Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:43.388565689Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:58.296712303Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:36:59.895573846Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:37:02.139176249Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:37:10.598814742Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:37:13.243251052Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:37:24.345009375Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:37:27.479460127Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:37:29.615336303Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:37:32.031952196Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ],
+      [
+        "2026-10-04T18:37:46.734912786Z",
+        "ad",
+        "WARN",
+        "Feature Flag adManualGc enabled, performing a manual gc now"
+      ]
+    ]
+  }
+}

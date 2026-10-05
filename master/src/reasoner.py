@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections import Counter
 from datetime import datetime
 
@@ -28,6 +29,11 @@ class Hypothesis(BaseModel):
     first_seen: datetime | None
     example_error: str
     supporting_logs: int
+
+
+def names(text: str, service: str) -> bool:
+    """True if ``service`` appears in ``text`` as a whole name, so "ad" does not match "load"."""
+    return re.search(rf"(?<![\w-]){re.escape(service)}(?![\w-])", text.lower()) is not None
 
 
 def is_problem(hit: LogHit) -> bool:
@@ -67,7 +73,7 @@ class ReasonerAgent:
                 continue
             message = (hit.message or "").lower()
             involved = {hit.service} if hit.service else set()
-            involved |= {s for s in self.services if s in message}
+            involved |= {s for s in self.services if names(message, s)}
             for service in involved:
                 support[service] += 1
                 first_seen.setdefault(service, hit.timestamp)

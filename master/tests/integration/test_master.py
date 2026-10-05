@@ -36,3 +36,26 @@ def test_query_finds_root_cause_and_saves_session(client):
 
 def test_unknown_session_is_404(client):
     assert client.get("/session/missing").status_code == 404
+
+
+async def test_missing_logs_reason_names_the_logs_not_the_docs():
+    from nexgen_shared.schemas import KnowledgeResult, LogRetrievalResult
+
+    from src.intent import IntentResult
+    from src.orchestrator import MasterOrchestrator
+
+    intent = IntentResult(logs_needed=True, docs_needed=True)
+    logs = LogRetrievalResult(query_id="q", status="success", kql_generated="x", syntax_valid=True,
+                              refinement_attempts=0, hits=[], hit_count=0, error=None)
+    docs = KnowledgeResult(query_id="q", status="failure", chunks=[], total_tokens_after_compression=0,
+                           conflict_detected=False, error="E004: rag down")
+    assert MasterOrchestrator._missing_reason(intent, logs, docs) == "no matching log lines were found"
+
+
+def test_trace_shows_the_log_search(client):
+    from datetime import datetime, timezone
+
+    body = {"query_id": "q2", "raw_text": "Why is the payments service throwing 500s?", "session_id": "s2",
+            "timestamp_utc": datetime.now(timezone.utc).isoformat()}
+    trace = client.post("/query", json=body).json()["reasoning_trace_summary"]
+    assert trace.startswith("log search: (fixture) -> ")

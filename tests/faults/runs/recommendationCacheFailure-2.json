@@ -1,0 +1,92 @@
+{
+  "run_id": "recommendationCacheFailure-2",
+  "flag": "recommendationCacheFailure",
+  "variant": "on",
+  "accepted": [
+    "recommendation"
+  ],
+  "question": "Why are frontend requests failing?",
+  "started_utc": "2026-10-04T19:10:05.576323+00:00",
+  "answer": "frontend",
+  "correct": false,
+  "seconds": 2.2,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"WARN\" OR \"ERROR\") -> 8 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "recommendationCacheFailure-2",
+    "root_cause_summary": "Frontend requests are failing because the frontend service logged an \"API request failed\" error at 19:10:40 UTC, indicating an internal failure.",
+    "confidence": 0.3,
+    "evidence": [
+      {
+        "type": "root_cause",
+        "ref": "service:frontend",
+        "snippet": "API request failed"
+      },
+      {
+        "type": "log",
+        "ref": "trace_id:<HASH>",
+        "snippet": "API request failed"
+      }
+    ],
+    "recommended_actions": [
+      "Check the health and recent changes of frontend."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"WARN\" OR \"ERROR\") -> 8 lines | cart: rejected (cart first failed after frontend did) | recommendation: rejected (recommendation first failed after frontend did) | frontend: accepted (topology, timing and grounding checks passed)",
+    "mttr_estimate_minutes": 30,
+    "generated_at": "2026-10-04T19:13:07.794326Z"
+  },
+  "logs": {
+    "total_log_lines": 5694,
+    "problem_lines": [
+      [
+        "2026-10-04T19:10:40.089000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T19:10:40.090000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T19:10:41.109000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T19:10:41.231384832Z",
+        "recommendation",
+        "WARN",
+        "Overriding of current LoggerProvider is not allowed"
+      ],
+      [
+        "2026-10-04T19:11:28.735929400Z",
+        "cart",
+        "ERROR",
+        "Wasn't able to connect to redis"
+      ],
+      [
+        "2026-10-04T19:12:36.951000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T19:12:36.952000000Z",
+        "frontend",
+        "ERROR",
+        "API request failed"
+      ],
+      [
+        "2026-10-04T19:12:37.911896576Z",
+        "recommendation",
+        "WARN",
+        "Overriding of current LoggerProvider is not allowed"
+      ]
+    ]
+  }
+}

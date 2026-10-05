@@ -1,0 +1,85 @@
+{
+  "ad": {
+    "dependencies": [
+      "flagd"
+    ]
+  },
+  "cart": {
+    "dependencies": [
+      "flagd"
+    ]
+  },
+  "checkout": {
+    "dependencies": [
+      "cart",
+      "currency",
+      "email",
+      "payment",
+      "product-catalog",
+      "shipping"
+    ]
+  },
+  "currency": {
+    "dependencies": []
+  },
+  "email": {
+    "dependencies": []
+  },
+  "flagd": {
+    "dependencies": []
+  },
+  "frontend": {
+    "dependencies": [
+      "ad",
+      "cart",
+      "checkout",
+      "currency",
+      "product-catalog",
+      "recommendation",
+      "shipping"
+    ]
+  },
+  "frontend-proxy": {
+    "dependencies": [
+      "flagd",
+      "frontend",
+      "image-provider"
+    ]
+  },
+  "frontend-web": {
+    "dependencies": [
+      "frontend-proxy"
+    ]
+  },
+  "image-provider": {
+    "dependencies": []
+  },
+  "load-generator": {
+    "dependencies": [
+      "flagd",
+      "frontend-proxy"
+    ]
+  },
+  "payment": {
+    "dependencies": [
+      "flagd"
+    ]
+  },
+  "product-catalog": {
+    "dependencies": []
+  },
+  "quote": {
+    "dependencies": []
+  },
+  "recommendation": {
+    "dependencies": [
+      "flagd",
+      "product-catalog"
+    ]
+  },
+  "shipping": {
+    "dependencies": [
+      "quote"
+    ]
+  }
+}

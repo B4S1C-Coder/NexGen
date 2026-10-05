@@ -1,0 +1,32 @@
+{
+  "run_id": "imageSlowLoad-3",
+  "flag": "imageSlowLoad",
+  "variant": "10sec",
+  "accepted": [
+    "image-provider"
+  ],
+  "question": "Why is the frontend slow?",
+  "started_utc": "2026-10-04T20:51:16.961457+00:00",
+  "answer": null,
+  "correct": false,
+  "seconds": 0.7,
+  "shop_healthy_before": true,
+  "log_search": "log search: log.level: (\"WARN\" OR \"ERROR\") -> 0 lines",
+  "llm_fallbacks": 0,
+  "report": {
+    "query_id": "imageSlowLoad-3",
+    "root_cause_summary": "Analysis could not be completed: no matching log lines were found",
+    "confidence": 0.0,
+    "evidence": [],
+    "recommended_actions": [
+      "Check that the Query and RAG services are reachable and the question names a service."
+    ],
+    "reasoning_trace_summary": "log search: log.level: (\"WARN\" OR \"ERROR\") -> 0 lines | no matching log lines were found",
+    "mttr_estimate_minutes": 0,
+    "generated_at": "2026-10-04T20:54:17.677850Z"
+  },
+  "logs": {
+    "total_log_lines": 2511,
+    "problem_lines": []
+  }
+}
